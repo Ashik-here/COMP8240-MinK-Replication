@@ -1,0 +1,268 @@
+% COMP8240 Project Update Presentation -- Min-K% Prob replication
+% Compile: pdflatex slides.tex  (or upload this folder to Overleaf)
+\documentclass[aspectratio=169,10pt]{beamer}
+\usetheme[progressbar=frametitle,numbering=fraction]{metropolis}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,shapes.geometric}
+\usepackage{xcolor}
+
+% Numbers come from the results files via scripts/make_figures.py; defaults show what is still pending.
+\InputIfFileExists{numbers.tex}{}{}
+\input{defaults.tex}
+
+\definecolor{mqred}{HTML}{A6192E}
+\definecolor{sblue}{HTML}{2A78D6}
+\definecolor{sorange}{HTML}{EB6834}
+\definecolor{saqua}{HTML}{1BAF7A}
+\definecolor{ink2}{HTML}{52514E}
+\setbeamercolor{frametitle}{bg=mqred!85!black}
+\setbeamercolor{progress bar}{fg=sorange}
+\newcommand{\muted}[1]{{\color{ink2}#1}}
+\newcommand{\figorpending}[2]{\IfFileExists{#2}{\includegraphics[width=#1]{#2}}%
+  {\fbox{\parbox[c][3.2cm][c]{#1}{\centering\muted{figure pending: \texttt{\detokenize{#2}}}}}}}
+
+\title{Replicating Min-K\% Prob}
+\subtitle{Project update: detecting pretraining data from large language models}
+\author{Ashikur Rahman \quad\muted{48483818}}
+\institute{COMP8240 Applications of Data Science, Macquarie University}
+\date{9 October 2026 \quad\muted{github.com/Ashik-here/COMP8240-MinK-Replication}}
+
+\begin{document}
+
+\maketitle
+
+% ---------------------------------------------------------------- RECAP
+\begin{frame}{The question and the paper}
+  \textbf{Can an outsider tell whether a text was in a model's training data?}\\
+  \muted{Copyright, benchmark contamination, privacy: all need this ``membership inference''.}
+  \vspace{0.6em}
+
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \textbf{Shi et al., ICLR 2024}
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item ICLR: CORE \textbf{A*}, Google Scholar top-10 venue
+        \item Code: \texttt{swj0419/detect-pretrain-code}\\ \muted{Apache-2.0, pinned at commit \texttt{a5048f9}}
+        \item Data: WikiMIA on Hugging Face \muted{(MIT)}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \textbf{Why this paper}
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item runs on a free Colab T4
+        \item $\sim$250 lines: I can explain all of it
+        \item claim is \textbf{contested}\\ \muted{Duan et al.\ 2024; Das et al.\ 2024}
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{The method: Min-K\% Prob}
+  \begin{columns}[c]
+    \begin{column}{0.55\textwidth}
+      \begin{tikzpicture}[x=0.62cm,y=0.42cm]
+        \foreach \i/\v in {1/0.1,2/0.2,3/8.0,4/0.3,5/6.0,6/0.4,7/0.5,8/0.2,9/1.0,10/0.3}{
+          \pgfmathsetmacro{\c}{(\v>5)?1:0}
+          \ifdim\c pt>0.5pt
+            \fill[sorange] (\i-0.38,0) rectangle (\i+0.38,-\v);
+          \else
+            \fill[sblue] (\i-0.38,0) rectangle (\i+0.38,-\v);
+          \fi
+        }
+        \draw[ink2] (0.4,0) -- (10.6,0);
+        \node[ink2,font=\scriptsize,anchor=south] at (5.5,0.2) {log-probability of each of 10 tokens};
+        \node[font=\scriptsize,anchor=west] at (5.5,-6.5) {\color{sorange}2 lowest = 20\%};
+      \end{tikzpicture}
+    \end{column}
+    \begin{column}{0.43\textwidth}
+      \begin{itemize}\setlength\itemsep{4pt}
+        \item Average of \emph{all} tokens: $-1.7$
+        \item Average of the \textbf{lowest 20\%}: $(-8.0-6.0)/2=\mathbf{-7.0}$
+        \item Unseen text has a few very surprising words; training removes them
+        \item Higher score $\Rightarrow$ predict \textbf{member}
+        \item One forward pass, no reference model
+      \end{itemize}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Original data: WikiMIA}
+  \textbf{Labels come from dates, not from the model's (secret) training set}
+  \begin{itemize}\setlength\itemsep{3pt}
+    \item \textbf{Members}: Wikipedia event articles created \emph{before 2017}
+    \item \textbf{Non-members}: event articles created \emph{after 1 Jan 2023}, after every model's cut-off
+    \item Same passages cut to 32 / 64 / 128 / 256 words, balanced 50/50
+  \end{itemize}
+  \vspace{0.4em}
+  \centering
+  \begin{tabular}{lrrrr}
+    \toprule
+    Length (words) & 32 & 64 & 128 & 256 \\
+    \midrule
+    Passages & 776 & 542 & 250 & 82 \\
+    \bottomrule
+  \end{tabular}
+  \vspace{0.5em}
+
+  \muted{Metrics: AUC (chance = 0.5) and TPR at 5\% false-positive rate.}
+\end{frame}
+
+\begin{frame}{System architecture}
+  \centering
+  \begin{tikzpicture}[
+      box/.style={draw=ink2,rounded corners=3pt,align=center,font=\small,minimum height=0.95cm,fill=white},
+      hi/.style={box,draw=sblue,line width=1pt},
+      arr/.style={-{Stealth[length=2mm]},ink2,thick}, node distance=0.55cm and 0.7cm]
+    \node[box] (p) {passage\\\muted{\scriptsize WikiMIA text}};
+    \node[hi,right=of p] (t) {target LM\\\muted{\scriptsize Pythia 160M--2.8B}};
+    \node[box,right=of t] (lp) {log-prob\\of every token};
+    \node[hi,right=of lp,yshift=0.75cm] (mk) {\textbf{Min-20\%}};
+    \node[box,right=of lp,yshift=-0.75cm] (bl) {PPL, Zlib,\\Lowercase};
+    \node[box,below=0.7cm of t] (r) {reference LM\\\muted{\scriptsize Pythia-70M}};
+    \node[box,right=of r,xshift=0.0cm] (sr) {Smaller-Ref};
+    \node[box,right=2.9cm of lp] (roc) {ROC curve\\AUC, TPR@5\%};
+    \draw[arr] (p) -- (t); \draw[arr] (t) -- (lp);
+    \draw[arr] (lp) -- (mk); \draw[arr] (lp) -- (bl);
+    \draw[arr] (p) |- (r); \draw[arr] (r) -- (sr);
+    \draw[arr] (mk) -- (roc); \draw[arr] (bl) -- (roc); \draw[arr] (sr) -| (roc);
+  \end{tikzpicture}
+  \vspace{0.6em}
+
+  \raggedright
+  \texttt{run.py} scores each passage $\rightarrow$ \texttt{eval.py} writes \texttt{auc.txt} + ROC plot.\\
+  \muted{I import the original functions unmodified and call them from a notebook, so per-passage
+  scores are kept (the original script discards them).}
+\end{frame}
+
+% ---------------------------------------------------------------- UPDATE
+\begin{frame}{Replication on original data: status}
+  \begin{columns}[c]
+    \begin{column}{0.47\textwidth}
+      \small
+      \textbf{Pythia-2.8B, mean of 4 lengths}\\[3pt]
+      \begin{tabular}{lcc}
+        \toprule
+        Method & Mine & Paper \\
+        \midrule
+        PPL         & \repPPL        & 0.61 \\
+        Zlib        & \repZlib       & 0.65 \\
+        Lowercase   & \repLowercase  & 0.59 \\
+        Smaller Ref & \repSmallerRef & 0.60 \\
+        \textbf{Min-20\%} & \textbf{\repMinK} & \textbf{0.67} \\
+        \bottomrule
+      \end{tabular}\\[5pt]
+      \muted{\scriptsize Colab T4, original code unmodified, current library versions;
+      95\% bootstrap CIs in the repo.}
+    \end{column}
+    \begin{column}{0.52\textwidth}
+      \figorpending{\linewidth}{figures/auc_vs_size.pdf}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{What replication needed: five traps in the original repo}
+  \begin{enumerate}\setlength\itemsep{3pt}
+    \item No \texttt{requirements.txt} $\Rightarrow$ I pin and record versions myself
+    \item Imports \texttt{openai} always; GPT-3 rows use \texttt{text-davinci-003}, \textbf{retired}
+          \muted{$\Rightarrow$ those rows can never be reproduced}
+    \item Score stored negated, then negated again in \texttt{eval.py}
+          \muted{$\Rightarrow$ a re-implementation can silently flip the ROC}
+    \item A committed \texttt{out/} folder holds the \emph{authors'} LLaMA-13B results
+          \muted{$\Rightarrow$ easy to read theirs instead of yours}
+    \item \texttt{auc.txt} says ``TPR@0.1\%FPR'' but the code computes TPR@\textbf{5\%}
+  \end{enumerate}
+  \vspace{0.3em}
+  \muted{Also: Table 1 does not say which length it reports, so I report all four plus the mean.
+  Independent 30-line re-implementation matches the repo to 3 decimals.}
+\end{frame}
+
+\begin{frame}{New data 1: existing datasets the paper did not use}
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      \textbf{arXivTection} \muted{(DE-COP, ICML 2024)} \hfill\textcolor{saqua}{\textbf{done}}
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item 50 arXiv papers, \textbf{1,549} passages
+        \item label: published before 2022 vs.\ in 2023
+        \item shipped as multiple choice $\Rightarrow$ adapter keeps the verbatim option
+        \item \muted{caveat: labels suit 2022+ models, not Pythia}
+      \end{itemize}
+    \end{column}
+    \begin{column}{0.48\textwidth}
+      \textbf{MIMIR} \muted{(Duan et al., COLM 2024)} \hfill\textcolor{sorange}{\textbf{gated}}
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item Pile \emph{train} vs.\ \emph{test}: same time, same sources
+        \item built for Pythia: my primary target
+        \item \textbf{now gated} on Hugging Face $\Rightarrow$ access request needed
+      \end{itemize}
+      \vspace{0.3em}
+      \textbf{BookTection}: public, same adapter \hfill\muted{next}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{New data 2: WikiMIA-2026, built with the paper's own recipe}
+  \begin{columns}[T]
+    \begin{column}{0.56\textwidth}
+      \small
+      \textbf{Pipeline} \muted{(\texttt{scripts/build\_wikimia2026.py})}
+      \begin{enumerate}\setlength\itemsep{1pt}
+        \item MediaWiki API: event categories of 2026 vs.\ 2012--15
+        \item creation date = first revision; keep $\geq$ 1 Jan 2026 / $<$ 2017
+        \item drop ``List of\ldots'', ``Timeline of\ldots''; regex clean
+        \item cut to 32/64/128/256 words, balance 50/50
+        \item JSONL in the original schema $\Rightarrow$ \texttt{run.py} unmodified
+      \end{enumerate}
+      \textbf{Change from WikiMIA:} \emph{same} 16 topic types on both sides.
+    \end{column}
+    \begin{column}{0.42\textwidth}
+      \small
+      \textbf{Built \newBuilt}\\[2pt]
+      \begin{tabular}{lr}
+        \toprule
+        Length & Passages \\
+        \midrule
+        32 & \newN \\ 64 & \newNA \\ 128 & \newNB \\ 256 & \newNC \\
+        \bottomrule
+      \end{tabular}\\[4pt]
+      \muted{\scriptsize \newRejectedNon\ of \newCheckedNon\ ``2026'' pages were created \emph{before}
+      2026 and rejected. Every passage keeps page id, revision id and creation time.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Progress: does the benchmark leak its own labels?}
+  \begin{columns}[c]
+    \begin{column}{0.64\textwidth}
+      \includegraphics[width=\linewidth]{figures/blind_audit.pdf}\\
+      \muted{\scriptsize WikiMIA bars: mean over the 4 lengths; 5-fold CV inside a pipeline
+      (arXivTection: folds grouped by paper).}
+    \end{column}
+    \begin{column}{0.35\textwidth}
+      \small
+      A classifier that \textbf{never sees the model}:
+      \begin{itemize}\setlength\itemsep{2pt}
+        \item WikiMIA: \textbf{\blindWikiMIAtfidflr} AUC vs.\ Min-K\% 0.67
+        \item years masked: still \blindWikiMIAtfidflrnoyr\\ \muted{``will be held'' vs.\ ``was''}
+        \item my WikiMIA-2026: \textbf{\blindWikiMIANewtfidflr}\\ \muted{matching topics does not fix it}
+        \item arXivTection: \blindarXivTectiontfidflr\\ \muted{\blindarXivLeaky\ if CV is not grouped by paper}
+      \end{itemize}
+      \muted{$\Rightarrow$ much of the signal is \emph{time}, not memorisation.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Next steps}
+  \begin{enumerate}\setlength\itemsep{4pt}
+    \item Run Min-K\% on WikiMIA-2026 \muted{(notebook ready)}: does the gap to the blind baseline persist?
+    \item \textbf{ND-2: a shift-controlled split}: members and non-members from the same time window;
+          blind AUC must be $\approx 0.5$ \emph{before} any attack is trusted
+    \item LLM-as-judge recency check \muted{(both A/B orders)} + 200 human labels, Cohen's / Fleiss' $\kappa$
+    \item MIMIR access, BookTection adapter; final report in \LaTeX{} with the GitHub repo
+  \end{enumerate}
+  \vspace{0.6em}
+  \centering
+  \textbf{So far:} the code reproduces; the open question is what the benchmark is really measuring.
+\end{frame}
+
+\end{document}

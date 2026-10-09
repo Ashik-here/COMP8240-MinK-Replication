@@ -1,0 +1,188 @@
+{
+ "WikiMIA": {
+  "raw": {
+   "non-member": [
+    "2023",
+    "2022",
+    "the 2023",
+    "march 2023",
+    "2023 the",
+    "will",
+    "february 2023",
+    "2023 at",
+    "will be",
+    "april 2023",
+    "april",
+    "january 2023"
+   ],
+   "member": [
+    "2014",
+    "the 2014",
+    "2013",
+    "2014 the",
+    "2014 at",
+    "was",
+    "february 2014",
+    "march 2014",
+    "in 2014",
+    "in the",
+    "2015",
+    "european"
+   ]
+  },
+  "years_masked": {
+   "non-member": [
+    "will",
+    "will be",
+    "be",
+    "april",
+    "march",
+    "march year",
+    "february",
+    "on march",
+    "year the",
+    "be held",
+    "are",
+    "is"
+   ],
+   "member": [
+    "was",
+    "in the",
+    "was the",
+    "october",
+    "european",
+    "july",
+    "england",
+    "were",
+    "august",
+    "in",
+    "gaza",
+    "november"
+   ]
+  }
+ },
+ "WikiMIA-2026": {
+  "raw": {
+   "non-member": [
+    "2026",
+    "the 2026",
+    "2026 the",
+    "2025",
+    "2026 at",
+    "july 2026",
+    "may 2026",
+    "january 2026",
+    "2026 in",
+    "bridge",
+    "june 2026",
+    "satellite"
+   ],
+   "member": [
+    "2014",
+    "2013",
+    "2012",
+    "2015",
+    "was",
+    "army",
+    "2011",
+    "it was",
+    "it",
+    "in 2014",
+    "football",
+    "or"
+   ]
+  },
+  "years_masked": {
+   "non-member": [
+    "on",
+    "will",
+    "edition",
+    "trump",
+    "satellite",
+    "bridge",
+    "the year",
+    "across",
+    "iran",
+    "may",
+    "tropical",
+    "by the"
+   ],
+   "member": [
+    "was",
+    "army",
+    "in year",
+    "it was",
+    "it",
+    "football",
+    "who",
+    "contest",
+    "via",
+    "of year",
+    "budget",
+    "or"
+   ]
+  }
+ },
+ "arXivTection": {
+  "raw": {
+   "non-member": [
+    "2022",
+    "2021",
+    "2020",
+    "al 2022",
+    "al 2020",
+    "al 2021",
+    "llms",
+    "generation",
+    "bias",
+    "gender",
+    "2023",
+    "human"
+   ],
+   "member": [
+    "network",
+    "layers",
+    "training",
+    "networks",
+    "layer",
+    "tasks",
+    "images",
+    "learning",
+    "word",
+    "modeling",
+    "detection",
+    "neural"
+   ]
+  },
+  "years_masked": {
+   "non-member": [
+    "llms",
+    "generation",
+    "bias",
+    "gender",
+    "human",
+    "domain",
+    "disco",
+    "al year",
+    "annotators",
+    "year",
+    "adaptation",
+    "dialogue"
+   ],
+   "member": [
+    "network",
+    "layers",
+    "training",
+    "networks",
+    "layer",
+    "tasks",
+    "word",
+    "images",
+    "learning",
+    "modeling",
+    "detection",
+    "neural"
+   ]
+  }
+ }
+}

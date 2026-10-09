@@ -1,0 +1,169 @@
+WikiMIA-2026 build, 2026-10-09T12:01:21
+non-members: event pages of 2026, created >= 2026-01-01
+  Category:2026 disasters: 360 pages
+  Category:2026 crimes: 278 pages
+  Category:2026 controversies: 287 pages
+  Category:2026 competitions: 84 pages
+  Category:2026 conferences: 30 pages
+  Category:2026 festivals: 97 pages
+  Category:2026 awards: 214 pages
+  Category:2026 in politics: 360 pages
+  Category:2026 in science: 360 pages
+  Category:2026 in sports: 360 pages
+  Category:2026 in technology: 243 pages
+  Category:2026 in transport: 360 pages
+  Category:2026 in military history: 212 pages
+  Category:2026 in law: 358 pages
+  Category:2026 in the environment: 200 pages
+  Category:2026 in health: 15 pages
+  2660 unique candidate titles after title filters; checking creation dates ...
+    checked 100, kept 63
+    checked 200, kept 126
+    checked 300, kept 189
+    checked 400, kept 246
+    checked 500, kept 303
+    checked 600, kept 366
+    checked 700, kept 434
+    checked 800, kept 501
+    checked 900, kept 564
+members: event pages of 2012-2015, created < 2017-01-01
+  Category:2012 disasters: 120 pages
+  Category:2012 crimes: 120 pages
+  Category:2012 controversies: 120 pages
+  Category:2012 competitions: 53 pages
+  Category:2012 conferences: 62 pages
+  Category:2012 festivals: 120 pages
+  Category:2012 awards: 120 pages
+  Category:2012 in politics: 120 pages
+  Category:2012 in science: 120 pages
+  Category:2012 in sports: 120 pages
+  Category:2012 in technology: 120 pages
+  Category:2012 in transport: 120 pages
+  Category:2012 in military history: 120 pages
+  Category:2012 in law: 120 pages
+  Category:2012 in the environment: 120 pages
+  Category:2012 in health: 44 pages
+  Category:2013 disasters: 120 pages
+  Category:2013 crimes: 120 pages
+  Category:2013 controversies: 120 pages
+  Category:2013 competitions: 66 pages
+  Category:2013 conferences: 18 pages
+  Category:2013 festivals: 120 pages
+  Category:2013 awards: 120 pages
+  Category:2013 in politics: 120 pages
+  Category:2013 in science: 120 pages
+  Category:2013 in sports: 120 pages
+  Category:2013 in technology: 120 pages
+  Category:2013 in transport: 120 pages
+  Category:2013 in military history: 120 pages
+  Category:2013 in law: 120 pages
+  Category:2013 in the environment: 120 pages
+  Category:2013 in health: 39 pages
+  Category:2014 disasters: 120 pages
+  Category:2014 crimes: 120 pages
+  Category:2014 controversies: 120 pages
+  Category:2014 competitions: 73 pages
+  Category:2014 conferences: 34 pages
+  Category:2014 festivals: 120 pages
+  Category:2014 awards: 120 pages
+  Category:2014 in politics: 120 pages
+  Category:2014 in science: 120 pages
+  Category:2014 in sports: 120 pages
+  Category:2014 in technology: 120 pages
+  Category:2014 in transport: 120 pages
+  Category:2014 in military history: 120 pages
+  Category:2014 in law: 120 pages
+  Category:2014 in the environment: 120 pages
+  Category:2014 in health: 39 pages
+  Category:2015 disasters: 120 pages
+  Category:2015 crimes: 120 pages
+  Category:2015 controversies: 120 pages
+  Category:2015 competitions: 75 pages
+  Category:2015 conferences: 33 pages
+  Category:2015 festivals: 120 pages
+  Category:2015 awards: 120 pages
+  Category:2015 in politics: 120 pages
+  Category:2015 in science: 120 pages
+  Category:2015 in sports: 120 pages
+  Category:2015 in technology: 120 pages
+  Category:2015 in transport: 120 pages
+  Category:2015 in military history: 120 pages
+  Category:2015 in law: 120 pages
+  Category:2015 in the environment: 120 pages
+  Category:2015 in health: 41 pages
+  5790 unique candidate titles after title filters; checking creation dates ...
+    checked 100, kept 75
+    checked 200, kept 154
+    checked 300, kept 232
+    checked 400, kept 309
+    checked 500, kept 383
+    checked 600, kept 458
+    checked 700, kept 530
+fetching lead sections ...
+length  32: 1056 passages (528 + 528)
+length  64: 688 passages (344 + 344)
+length 128: 268 passages (134 + 134)
+length 256: 72 passages (36 + 36)
+{
+ "built": "2026-10-09",
+ "cutoff": "2026-01-01",
+ "member_before": "2017-01-01",
+ "member_years": "2012-2015",
+ "seed": 0,
+ "api_calls": 3110,
+ "creation_checked": {
+  "non-members": 947,
+  "members": 795
+ },
+ "rejected": {
+  "non-members": {
+   "created on the wrong side of the date": 347
+  },
+  "members": {
+   "created on the wrong side of the date": 195
+  }
+ },
+ "kept_with_text": {
+  "non-member": 600,
+  "member": 600
+ },
+ "buckets": {
+  "32": {
+   "n": 1056,
+   "members": 528,
+   "non_members": 528,
+   "available": {
+    "non-members": 528,
+    "members": 534
+   }
+  },
+  "64": {
+   "n": 688,
+   "members": 344,
+   "non_members": 344,
+   "available": {
+    "non-members": 344,
+    "members": 392
+   }
+  },
+  "128": {
+   "n": 268,
+   "members": 134,
+   "non_members": 134,
+   "available": {
+    "non-members": 134,
+    "members": 180
+   }
+  },
+  "256": {
+   "n": 72,
+   "members": 36,
+   "non_members": 36,
+   "available": {
+    "non-members": 36,
+    "members": 46
+   }
+  }
+ }
+}
+done: 3110 API calls

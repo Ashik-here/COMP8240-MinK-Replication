@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Third-party datasets are re-downloaded by the scripts, not redistributed here
+data/external/
+
+# LaTeX build files
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.synctex.gz
+build.log
+# ...but keep the dataset's own build log (provenance)
+!data/wikimia2026/raw/**/build.log
+
+# Private presentation notes
+report/update_presentation/notes/

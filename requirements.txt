@@ -1,0 +1,11 @@
+# Local (CPU) scripts: data building, blind-baseline audit, figures.
+# Exact versions used on 9 Oct 2026 (Python 3.14.7, Windows 11).
+numpy==2.5.3
+requests==2.34.2
+scikit-learn==1.9.1
+pandas==3.0.6
+matplotlib==3.11.2
+
+# GPU runs happen in Google Colab (see notebooks/). Colab's preinstalled torch / transformers / datasets
+# are used as-is; each run records its exact versions in results/<run>/environment.json.
+# The original run.py additionally needs:  accelerate  openai  (installed by the notebooks).
