@@ -256,11 +256,15 @@ write("03_live_demo.ipynb", [
 '''),
     SETUP,
     DRIVER,
-    md("## 1. Score passages with the original `run.py`"),
+    md("## 0. Load the model and data (run this BEFORE you start recording)"),
     code(r'''
 TARGET = 'EleutherAI/pythia-160m'
 m1, m2, t1, t2 = R.load_model(TARGET, REF)                       # original loader
 data = R.convert_huggingface_data_to_list_dic(R.load_dataset('swj0419/WikiMIA', split='WikiMIA_length64'))
+print('ready:', TARGET, '+', REF, '|', len(data), 'WikiMIA passages of 64 words')
+'''),
+    md("## 1. Score passages with the original `run.py` (live, ~10 s)"),
+    code(r'''
 out = R.evaluate_data(data[:200], m1, m2, t1, t2, 'input', TARGET, REF)   # original scoring loop
 '''),
     md("## 2. What Min-K% looks at: the least likely 20% of tokens in one passage"),

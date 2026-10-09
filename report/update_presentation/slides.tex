@@ -158,7 +158,9 @@
       \muted{\scriptsize Colab T4, original code at \texttt{a5048f9}, transformers 5.18, fp16.}
     \end{column}
     \begin{column}{0.59\textwidth}
-      \figorpending{\linewidth}{figures/auc_vs_size.pdf}
+      \figorpending{\linewidth}{figures/auc_vs_size.pdf}\\[2pt]
+      \muted{\footnotesize Scope: the paper's 20B--66B models exceed a free T4, so its size claim is
+      tested across five Pythia sizes instead.}
     \end{column}
   \end{columns}
 \end{frame}
@@ -234,7 +236,9 @@
         \bottomrule
       \end{tabular}\\[3pt]
       \muted{\scriptsize \newRejectedNon\ of \newCheckedNon\ ``2026'' pages were created \emph{before}
-      2026 and rejected. Each passage keeps page id, revision id, creation time.}
+      2026 and rejected. Each passage keeps page id, revision id, creation time.}\\[6pt]
+      \textbf{Annotation:} membership labels come \emph{automatically} from creation dates.\\
+      \muted{Human + LLM-judge labels: planned for the recency audit (ND-2).}
     \end{column}
   \end{columns}
 \end{frame}
@@ -271,10 +275,13 @@
     \item LLM-as-judge recency check \muted{(both A/B orders)} + 200 human labels, Cohen's / Fleiss' $\kappa$;
           final report in \LaTeX{} with the GitHub repo
   \end{enumerate}
-  \vspace{0.6em}
+  \vspace{0.4em}
   \centering
   \textbf{So far:} the method reproduces on old \emph{and} new data;\\
-  the open question is whether it detects \emph{memorisation} or \emph{time}.
+  the open question is whether it detects \emph{memorisation} or \emph{time}.\\[0.7em]
+  \fcolorbox{sblue}{sblue!8}{\parbox{0.86\textwidth}{\centering\small
+    \textbf{All code, data, results and run logs:}\quad
+    \texttt{\href{https://github.com/Ashik-here/COMP8240-MinK-Replication}{github.com/Ashik-here/COMP8240-MinK-Replication}}}}
 \end{frame}
 
 \end{document}
