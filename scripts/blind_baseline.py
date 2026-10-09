@@ -71,6 +71,19 @@ def load_arxivtection(cache):
     return [json.loads(l) for l in path.read_text(encoding="utf-8").splitlines()]
 
 
+def load_mimir(folder):
+    """MIMIR Wikipedia split (Duan et al., COLM 2024; gated on Hugging Face, so it is saved locally by hand
+    and never committed). Members = Pile train, non-members = Pile test: same source, same time period.
+    Each line is a JSON string of 100-200 words; we cut to the WikiMIA lengths that every passage reaches."""
+    files = {1: "wikipedia_en_ngram_13_0.8_train_members.jsonl", 0: "wikipedia_en_ngram_13_0.8_test_nonmembers.jsonl"}
+    if not all((folder / f).exists() for f in files.values()):
+        return None
+    texts = {lab: [json.loads(l) for l in (folder / f).read_text(encoding="utf-8").splitlines() if l.strip()]
+             for lab, f in files.items()}
+    return {L: [{"input": " ".join(t.split()[:L]), "label": lab} for lab in (1, 0) for t in texts[lab]]
+            for L in (32, 64, 128)}
+
+
 def load_jsonl_dir(folder, prefix):
     return {L: [json.loads(l) for l in (folder / f"{prefix}_length{L}.jsonl").read_text(encoding="utf-8").splitlines()]
             for L in LENGTHS}
@@ -125,6 +138,9 @@ def main():
     if Path(args.new_data, "WikiMIA2026_length32.jsonl").exists():
         datasets["WikiMIA-2026"] = load_jsonl_dir(Path(args.new_data), "WikiMIA2026")
     datasets["arXivTection"] = {"all": load_arxivtection(Path("data/external/arxivtection"))}
+    mimir = load_mimir(Path("data/external/mimir"))
+    if mimir:
+        datasets["MIMIR-Wikipedia"] = mimir
 
     rows, feats = [], {}
     for name, data in datasets.items():

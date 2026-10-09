@@ -184,5 +184,67 @@
     "neural"
    ]
   }
+ },
+ "MIMIR-Wikipedia": {
+  "raw": {
+   "non-member": [
+    "song",
+    "up",
+    "china",
+    "side",
+    "through",
+    "district in",
+    "chinese",
+    "after",
+    "before",
+    "studio",
+    "music",
+    "seat"
+   ],
+   "member": [
+    "other",
+    "street",
+    "released in",
+    "team",
+    "henry",
+    "language",
+    "de",
+    "tamil",
+    "use",
+    "broadcast",
+    "at the",
+    "plot"
+   ]
+  },
+  "years_masked": {
+   "non-member": [
+    "song",
+    "up",
+    "china",
+    "side",
+    "chinese",
+    "district in",
+    "through",
+    "music",
+    "after",
+    "before",
+    "county",
+    "studio"
+   ],
+   "member": [
+    "other",
+    "street",
+    "released in",
+    "team",
+    "language",
+    "de",
+    "at the",
+    "henry",
+    "broadcast",
+    "use",
+    "tamil",
+    "year from"
+   ]
+  }
  }
 }

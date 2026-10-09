@@ -41,9 +41,33 @@ that never queries any model separates WikiMIA members from non-members with mea
 four lengths, versus 0.67 for Min-K% on Pythia-2.8B in the paper. Simply taking the latest year mentioned
 in the passage gives 0.89; masking all years still leaves 0.80 (tense: "will be held" vs "was").
 On arXivTection, grouped by paper, the blind classifier reaches 0.95 (0.997 if the cross-validation is not
-grouped by paper, which leaks paper identity across folds).
+grouped by paper, which leaks paper identity across folds). On WikiMIA-2026, built here with topic-matched
+categories, it still reaches 0.95. The **control** is MIMIR's Wikipedia split (members = Pile train,
+non-members = Pile test, no time gap): there the same classifier scores 0.48–0.55, i.e. chance. So the
+classifier is not simply strong; the date-defined benchmarks leak time. (MIMIR is gated on Hugging Face and
+is used locally only; place the two files in `data/external/mimir/` to reproduce.)
 
-**Replication sweep:** see `results/replication/` once the Colab run is added.
+**Replication sweep** (`results/replication/`, Colab T4, transformers 5.18, fp16). Pythia-2.8B, mean AUC over
+the four WikiMIA lengths, mine vs. the paper's Table 1:
+
+| Method | Mine | Paper |
+|---|---|---|
+| PPL | 0.626 | 0.61 |
+| Zlib | 0.642 | 0.65 |
+| Lowercase | 0.603 | 0.59 |
+| Smaller Ref (Pythia-70M) | 0.610 | 0.60 |
+| **Min-20%** | **0.649** | **0.67** |
+
+All five are within 0.02 of the paper. The model-size trend reproduces (Min-20%: 0.558, 0.591, 0.617, 0.618,
+0.649 for 160M → 2.8B), as does the length trend (0.617 at 32 words → 0.701 at 256). k = 20% is the best k in
+a 5–60% sweep. Min-K%'s margin over Zlib (0.007) is well inside the 95% bootstrap CIs. The Pythia-160M,
+length-32 numbers match the August feasibility run to three decimals (Min-20% 0.532, PPL 0.553).
+
+**Min-K% on WikiMIA-2026** (`results/wikimia2026/`, `notebooks/02_wikimia2026_attack.ipynb`). Pythia-2.8B,
+mean over the four lengths: Min-20% **0.675**, PPL 0.661, Zlib 0.627, Lowercase 0.642, Smaller Ref 0.611.
+Min-K% is again the best method and the size trend holds (0.561 → 0.641 → 0.675 for 160M → 1.4B → 2.8B):
+the paper's claim transfers to fresh data. On the same data a text-only classifier reaches 0.95, so these
+AUCs cannot by themselves be attributed to memorisation.
 
 ## Reproducibility notes on the original code
 

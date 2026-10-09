@@ -138,7 +138,7 @@
 % ---------------------------------------------------------------- UPDATE
 \begin{frame}{Replication on original data: status}
   \begin{columns}[c]
-    \begin{column}{0.47\textwidth}
+    \begin{column}{0.40\textwidth}
       \small
       \textbf{Pythia-2.8B, mean of 4 lengths}\\[3pt]
       \begin{tabular}{lcc}
@@ -152,10 +152,12 @@
         \textbf{Min-20\%} & \textbf{\repMinK} & \textbf{0.67} \\
         \bottomrule
       \end{tabular}\\[5pt]
-      \muted{\scriptsize Colab T4, original code unmodified, current library versions;
-      95\% bootstrap CIs in the repo.}
+      \textbf{All five within 0.02 of the paper.}\\[1pt]
+      size \repMinSmall$\,\rightarrow\,$\repMinLarge,\; length \repMinLenShort$\,\rightarrow\,$\repMinLenLong\\[1pt]
+      \muted{Min-K\% leads Zlib by $<$0.01: inside the CIs.}\\[3pt]
+      \muted{\scriptsize Colab T4, original code at \texttt{a5048f9}, transformers 5.18, fp16.}
     \end{column}
-    \begin{column}{0.52\textwidth}
+    \begin{column}{0.59\textwidth}
       \figorpending{\linewidth}{figures/auc_vs_size.pdf}
     \end{column}
   \end{columns}
@@ -189,11 +191,13 @@
       \end{itemize}
     \end{column}
     \begin{column}{0.48\textwidth}
-      \textbf{MIMIR} \muted{(Duan et al., COLM 2024)} \hfill\textcolor{sorange}{\textbf{gated}}
+      \textbf{MIMIR} \muted{(COLM 2024)} \hfill\textcolor{saqua}{\textbf{obtained}}
       \begin{itemize}\setlength\itemsep{2pt}
         \item Pile \emph{train} vs.\ \emph{test}: same time, same sources
         \item built for Pythia: my primary target
-        \item \textbf{now gated} on Hugging Face $\Rightarrow$ access request needed
+        \item \textbf{gated} since my proposal $\Rightarrow$ access granted today;
+              Wikipedia split, 1,000 + 1,000 passages
+        \item \muted{kept local: gated data is not redistributed}
       \end{itemize}
       \vspace{0.3em}
       \textbf{BookTection}: public, same adapter \hfill\muted{next}
@@ -213,7 +217,11 @@
         \item cut to 32/64/128/256 words, balance 50/50
         \item JSONL in the original schema $\Rightarrow$ \texttt{run.py} unmodified
       \end{enumerate}
-      \textbf{Change from WikiMIA:} \emph{same} 16 topic types on both sides.
+      \textbf{Change from WikiMIA:} \emph{same} 16 topic types on both sides.\\[6pt]
+      \textbf{First attack result} \muted{(original code, Pythia-2.8B)}:\\
+      Min-K\% \textbf{\newMinKLarge} \muted{(WikiMIA \repMinK)}, PPL \newPPLLarge, Zlib \newZlibLarge;
+      size \newMinKSmall\,$\rightarrow$\,\newMinKMid\,$\rightarrow$\,\newMinKLarge\\
+      $\Rightarrow$ \textbf{the claim transfers to fresh data}
     \end{column}
     \begin{column}{0.42\textwidth}
       \small
@@ -224,9 +232,9 @@
         \midrule
         32 & \newN \\ 64 & \newNA \\ 128 & \newNB \\ 256 & \newNC \\
         \bottomrule
-      \end{tabular}\\[4pt]
+      \end{tabular}\\[3pt]
       \muted{\scriptsize \newRejectedNon\ of \newCheckedNon\ ``2026'' pages were created \emph{before}
-      2026 and rejected. Every passage keeps page id, revision id and creation time.}
+      2026 and rejected. Each passage keeps page id, revision id, creation time.}
     \end{column}
   \end{columns}
 \end{frame}
@@ -239,30 +247,34 @@
       (arXivTection: folds grouped by paper).}
     \end{column}
     \begin{column}{0.35\textwidth}
-      \small
-      A classifier that \textbf{never sees the model}:
-      \begin{itemize}\setlength\itemsep{2pt}
-        \item WikiMIA: \textbf{\blindWikiMIAtfidflr} AUC vs.\ Min-K\% 0.67
-        \item years masked: still \blindWikiMIAtfidflrnoyr\\ \muted{``will be held'' vs.\ ``was''}
-        \item my WikiMIA-2026: \textbf{\blindWikiMIANewtfidflr}\\ \muted{matching topics does not fix it}
-        \item arXivTection: \blindarXivTectiontfidflr\\ \muted{\blindarXivLeaky\ if CV is not grouped by paper}
+      \footnotesize
+      AUC of a classifier that \textbf{never sees the model}:
+      \begin{itemize}\setlength\itemsep{1pt}
+        \item WikiMIA \textbf{\blindWikiMIAtfidflr} \muted{(Min-K\%: 0.67)}
+        \item years masked \blindWikiMIAtfidflrnoyr\ \muted{(``will be'' vs.\ ``was'')}
+        \item my WikiMIA-2026 \textbf{\blindWikiMIANewtfidflr} \muted{(topics matched)}
+        \item arXivTection \blindarXivTectiontfidflr\ \muted{(\blindarXivLeaky\ if folds leak papers)}
+        \item \textbf{control} MIMIR \textbf{\blindMIMIRtfidflr} $\approx$ chance
       \end{itemize}
-      \muted{$\Rightarrow$ much of the signal is \emph{time}, not memorisation.}
+      \vspace{2pt}
+      $\Rightarrow$ the leak is \textbf{time}, not memorisation.
     \end{column}
   \end{columns}
 \end{frame}
 
 \begin{frame}{Next steps}
   \begin{enumerate}\setlength\itemsep{4pt}
-    \item Run Min-K\% on WikiMIA-2026 \muted{(notebook ready)}: does the gap to the blind baseline persist?
+    \item \textbf{Min-K\% on MIMIR}, where the blind baseline is at chance: does the attack still beat 0.5?
     \item \textbf{ND-2: a shift-controlled split}: members and non-members from the same time window;
           blind AUC must be $\approx 0.5$ \emph{before} any attack is trusted
-    \item LLM-as-judge recency check \muted{(both A/B orders)} + 200 human labels, Cohen's / Fleiss' $\kappa$
-    \item MIMIR access, BookTection adapter; final report in \LaTeX{} with the GitHub repo
+    \item Which passages does Min-K\% get right: the same ones the blind classifier finds easy?
+    \item LLM-as-judge recency check \muted{(both A/B orders)} + 200 human labels, Cohen's / Fleiss' $\kappa$;
+          final report in \LaTeX{} with the GitHub repo
   \end{enumerate}
   \vspace{0.6em}
   \centering
-  \textbf{So far:} the code reproduces; the open question is what the benchmark is really measuring.
+  \textbf{So far:} the method reproduces on old \emph{and} new data;\\
+  the open question is whether it detects \emph{memorisation} or \emph{time}.
 \end{frame}
 
 \end{document}

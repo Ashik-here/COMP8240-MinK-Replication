@@ -245,6 +245,50 @@ files.download('/content/replication_results.zip')
 ])
 
 # --------------------------------------------------------------------------
+# Notebook 3: a one-minute live demo for the update video
+# --------------------------------------------------------------------------
+write("03_live_demo.ipynb", [
+    md(r'''
+# Live demo: the original Min-K% code, start to finish, in about a minute
+
+**T4 GPU**, then run the cells one by one while recording. Uses Pythia-160M (smallest, fastest) on
+200 WikiMIA passages of 64 words; the full sweep is `01_replication_sweep.ipynb`.
+'''),
+    SETUP,
+    DRIVER,
+    md("## 1. Score passages with the original `run.py`"),
+    code(r'''
+TARGET = 'EleutherAI/pythia-160m'
+m1, m2, t1, t2 = R.load_model(TARGET, REF)                       # original loader
+data = R.convert_huggingface_data_to_list_dic(R.load_dataset('swj0419/WikiMIA', split='WikiMIA_length64'))
+out = R.evaluate_data(data[:200], m1, m2, t1, t2, 'input', TARGET, REF)   # original scoring loop
+'''),
+    md("## 2. What Min-K% looks at: the least likely 20% of tokens in one passage"),
+    code(r'''
+def show(ex):
+    _, logp, _ = R.calculatePerplexity(ex['input'], m1, t1, m1.device)     # original per-token log-probs
+    toks = t1.convert_ids_to_tokens(t1.encode(ex['input']))[1:]
+    k = int(len(logp) * 0.2)
+    worst = sorted(zip(logp, toks))[:k]
+    kind = 'MEMBER (pre-2017)' if ex['label'] == 1 else 'NON-MEMBER (post-2023)'
+    print(f'{kind}: {ex["input"][:110]}...')
+    print('  lowest-20% tokens:', ', '.join(f'{t.replace("Ġ", "")}({p:.1f})' for p, t in worst[:8]), '...')
+    print(f'  Min-20% score = {np.mean([p for p, _ in worst]):.2f}   (higher = more likely a member)\n')
+
+show(next(ex for ex in out if ex['label'] == 1))
+show(next(ex for ex in out if ex['label'] == 0))
+'''),
+    md("## 3. The original evaluation: `eval.py` writes `auc.txt` and the ROC plot"),
+    code(r'''
+os.makedirs('/content/demo', exist_ok=True)
+R.fig_fpr_tpr(out, '/content/demo')                              # original evaluation
+print(open('/content/demo/auc.txt').read())
+from IPython.display import Image, display
+display(Image('/content/demo/auc.png'))
+'''),
+])
+
+# --------------------------------------------------------------------------
 # Notebook 2: the same attack on the newly constructed WikiMIA-2026
 # --------------------------------------------------------------------------
 write("02_wikimia2026_attack.ipynb", [
