@@ -1,0 +1,289 @@
+% =====================================================================
+% COMP8240 Applications of Data Science -- Assessment 3: Project Final Report
+% Novel project: replication of Shi et al. (ICLR 2024), Min-K% Prob.
+% Numbers come from generated/numbers.tex (scripts/make_report_assets.py); do not type results by hand.
+% Build:  latexmk -pdf main.tex
+% =====================================================================
+\documentclass[11pt]{article}
+\usepackage[preprint]{acl}
+
+\usepackage{times}
+\usepackage{latexsym}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{microtype}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{array}
+\usepackage{xcolor}
+
+\newcommand{\pending}{\textcolor{red}{[pending]}}
+\newcommand{\TODO}[1]{\textcolor{red}{[TODO: #1]}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\input{generated/numbers.tex}
+\setlength{\emergencystretch}{3em}   % fewer overfull lines from long \texttt names
+
+\title{Detecting Pretraining Data, or Detecting the Passage of Time?\\
+A Replication of Min-K\% Prob on WikiMIA and New Data}
+
+\author{Ashikur Rahman \\
+  Student ID: 48483818 \quad
+  COMP8240, Session 2 2026 \\
+  School of Computing, Macquarie University \\
+  \texttt{ashikurrahman.zyx@gmail.com}}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+I replicate \emph{Detecting Pretraining Data from Large Language Models} \citep{shi2024detecting}, which proposes Min-K\% Prob, a reference-free test of whether a passage was in a language model's training data, and the WikiMIA benchmark. Running the authors' unmodified code on WikiMIA with five Pythia models (160M--2.8B), every method lands within 0.02 AUC of the paper's Pythia-2.8B results (Min-K\% \RepMinK{} against 0.67), and the model-size and passage-length trends reproduce; I document six traps in the code that a replicator has to get past. I then build WikiMIA-2026, a 2,078-passage re-run of the paper's recipe with a 2026 cut-off, a shift-controlled subset of it, and a 100-pair human annotation set, and add two existing benchmarks. Min-K\% transfers to the new data (AUC \NewMinK{}), but a text classifier that never sees the model separates the same passages with AUC \BlindNewRaw{}. On MIMIR, where members and non-members come from the same period, Min-K\% scores \MimirMinK{}. Year masking, propensity matching, three human annotators and two LLM judges are used to locate where the benchmark signal comes from. \TODO{final sentence once MIMIR and judge results are in}
+\end{abstract}
+
+% =====================================================================
+\section{Introduction}
+
+Language-model developers rarely publish their training corpora, yet authors, benchmark designers and data subjects all have reasons to ask whether a particular text was used. \emph{Membership inference}---deciding from model outputs whether a text was in the training set \citep{shokri2017membership}---is the technical question underneath. \citet{shi2024detecting} brought it to LLM pretraining with a simple statistic and a dynamic benchmark, and both have since become standard reference points.
+
+The project has three parts. I \emph{reproduce} the paper's WikiMIA results with the original code (Section~\ref{sec:replication}); I \emph{apply} it to data the authors never used: two existing benchmarks and three datasets I built (Section~\ref{sec:newdata}); and I \emph{test} the paper's central claim against a known objection, that date-defined benchmarks reward detecting \emph{when} a text was written rather than \emph{whether} it was trained on \citep{duan2024membership,das2024blind} (Section~\ref{sec:results}). All code, data, per-passage scores and logs are public.\footnote{\url{https://github.com/Ashik-here/COMP8240-MinK-Replication}}
+
+% =====================================================================
+\section{The Paper, and Why I Chose It}
+\label{sec:paper}
+
+\paragraph{Summary.} \citet{shi2024detecting}\footnote{\url{https://openreview.net/forum?id=zWqr3MQuNs}} ask whether an outsider with only query access to a model can tell that a passage was in its pretraining data. Their method, \textbf{Min-K\% Prob}, rests on one observation: an unseen passage tends to contain a few tokens the model finds very unlikely, and training removes such outliers. For $x=x_1\ldots x_N$, let $\mathrm{Min\text{-}K\%}(x)$ be the $k\%$ of tokens with the lowest probability under the model; the score is
+\begin{equation}
+\frac{1}{|\mathrm{Min\text{-}K\%}(x)|}\sum_{x_i\in\mathrm{Min\text{-}K\%}(x)}\log p(x_i\mid x_{<i}),
+\end{equation}
+with higher scores predicting membership. It needs no reference model and one forward pass per passage. The paper also introduces \textbf{WikiMIA} (Section~\ref{sec:wikimia}) and three case studies: copyrighted books, contaminated benchmarks, and auditing machine unlearning.
+
+\paragraph{Evaluation framework.} Detection is scored as binary classification with members as positives, using two threshold-free measures: \textbf{AUC}, the probability that a random member outscores a random non-member, and \textbf{TPR at 5\% FPR}, the share of members caught when only 5\% of non-members are falsely flagged, which matters when an accusation must be made about a specific document \citep{carlini2022membership}. Baselines are perplexity (\textsc{PPL}; \citealp{yeom2018privacy}), \textsc{Zlib} and \textsc{Lowercase} calibration \citep{carlini2021extracting}, a smaller reference model (\textsc{Smaller Ref}) and the costly \textsc{Neighbor} attack \citep{mattern2023membership}. Averaged over models on WikiMIA, Min-K\% reaches an AUC of about 0.72 against 0.67 for the best baseline, the paper's headline 7.4\% improvement. For Pythia-2.8B, the model this project centres on, the paper reports Min-K\% 0.67, Zlib 0.65, PPL 0.61, Smaller Ref 0.60 and Lowercase 0.59.
+
+\paragraph{Justification.} \emph{Venue:} ICLR is ranked A* by CORE (CORE2023, FoR 4611; \citealp{core2023}) and is the 8th-ranked venue across all disciplines in Google Scholar Metrics 2025, with h5-index 362 \citep{scholarmetrics2025}. \emph{Standing:} WikiMIA is the standard evaluation set of later work at strong venues, including Min-K\%++, an ICLR 2025 Spotlight \citep{zhang2025minkpp}, and an EMNLP 2024 paper \citep{zhang2024pretraining}, and the central claim has been publicly contested \citep{duan2024membership,das2024blind}. A result others both build on and argue with is what a replication can usefully weigh in on. \emph{Feasibility:} the code is public under Apache-2.0 and about 250 lines \citep{minkcode2023}; the data is 469\,KB under an MIT licence; and the Pythia models \citep{biderman2023pythia} run on a free Colab T4. Pythia also has a public, documented training corpus, the Pile \citep{gao2020pile}, which is what makes a membership ground truth that does not depend on dates possible (Section~\ref{sec:existing}).
+
+% =====================================================================
+\section{The Original Dataset: WikiMIA}
+\label{sec:wikimia}
+
+WikiMIA\footnote{\url{https://huggingface.co/datasets/swj0419/WikiMIA}} \citep{wikimia2023} defines membership by time. Wikipedia event pages created after 1 January 2023 cannot have been in the training data of models released before then and are labelled non-members (0); pages about events created before 2017 almost certainly were and are labelled members (1). The passages are the opening words of each article, cut to 32, 64, 128 or 256 words, giving four splits of 776, 542, 250 and 82 passages (387, 284, 139 and 51 members). Each split is a list of records with two fields, \texttt{input} and \texttt{label}, which the original code reads directly; there is no title, date or page identifier. Figure~\ref{fig:snippets} shows one member and one non-member. The splits shrink with length because only long articles reach 256 words, so the four splits are not independent samples. A ChatGPT-paraphrased variant and the BookMIA books benchmark also exist; neither is used here.
+
+\begin{figure*}[t]
+\centering\small
+\begin{tabular}{@{}L{2.2cm}L{1.9cm}L{10.9cm}@{}}
+\toprule
+\textbf{Dataset} & \textbf{Label} & \textbf{\texttt{input} (32-word split)} \\
+\midrule
+WikiMIA & 1 (member) & \SnipWikiMember \\
+WikiMIA & 0 (non-member) & \SnipWikiNon \\
+\addlinespace
+WikiMIA-2026 & 1 (member) & \SnipNewMember \\
+WikiMIA-2026 & 0 (non-member) & \SnipNewNon \\
+\midrule
+\multicolumn{3}{@{}L{15.4cm}@{}}{\textbf{One WikiMIA-2026 record} (passage shortened here): {\ttfamily\footnotesize \SnipNewJSON}} \\
+\bottomrule
+\end{tabular}
+\caption{Data snippets. WikiMIA records hold only \texttt{input} and \texttt{label}; WikiMIA-2026 keeps the same two fields, so the original code reads it unchanged, and adds the title, creation timestamp, page id and the exact revision the text was taken from. Note the date and the future tense in the non-member passages: Section~\ref{sec:results} measures how much of the benchmark these cues explain.}
+\label{fig:snippets}
+\end{figure*}
+
+% =====================================================================
+\section{Replication of the Original Work}
+\label{sec:replication}
+
+\paragraph{Environment.} All model runs used Google Colab with one NVIDIA T4 (16\,GB), Python 3.13, PyTorch 2.11 (CUDA 13), \texttt{transformers} 5.18, \texttt{datasets} 4.8 and \texttt{scikit-learn} 1.6, recorded in \texttt{results/*/environment.json}. The original repository is cloned and checked out at commit \texttt{a5048f9}; its files are never edited. Rather than calling \texttt{run.py} from the command line, the notebooks import it and call its own functions---\texttt{load\_model}, \texttt{evaluate\_data}, \texttt{fig\_fpr\_tpr} and \texttt{sweep}---so the scoring and evaluation are the authors' code, while the per-passage scores, which \texttt{run.py} discards, can be saved for further analysis. I added 1,000-sample bootstrap 95\% confidence intervals on every AUC \citep{efron1993introduction}, which the paper does not report. Targets are Pythia 160M, 410M, 1B, 1.4B and 2.8B with Pythia-70M as the \textsc{Smaller Ref} model, the reference the paper uses for Pythia-2.8B, on all four WikiMIA lengths. Under \texttt{transformers}~5 the loader keeps the checkpoints' float16 weights. A full sweep takes about 35 minutes; a Colab disconnect resumes from finished runs.
+
+\paragraph{Six traps.} Getting a correct number required finding the following, each documented in the repository README. (1)~There is no \texttt{requirements.txt}; versions had to be chosen and recorded. (2)~\texttt{run.py} imports \texttt{openai} unconditionally, and its GPT-3 path calls \texttt{text-davinci-003}, retired in January 2024, so the paper's GPT-3 rows cannot be reproduced at all. (3)~\texttt{run.py} stores the \emph{negated} Min-K\% mean and \texttt{eval.py} negates again inside \texttt{roc\_curve}; a reimplementation that misses one sign inverts the ROC curve. (4)~The repository ships an \texttt{out/} directory with the authors' own LLaMA-13B results, which any script that globs for \texttt{auc.txt} picks up instead of one's own. (5)~\texttt{eval.py} labels its third number ``TPR@0.1\%FPR'' but computes TPR at 5\% FPR. (6)~\texttt{eval.load\_jsonl} silently shuffles rows with a fixed seed: AUC is unaffected, but per-passage outputs no longer line up with the input file, so every later join in this project uses the passage text or its hash, never the row number.
+
+\begin{table*}[t]
+\centering\small
+\input{generated/tab_replication.tex}
+\caption{Replication on WikiMIA with Pythia-2.8B and the original code. AUC per passage length and the mean of the four, against the paper's Table~1, which does not say which length it reports; TPR at 5\% FPR (\%, mean of the four lengths) against the paper's Table~6. Every AUC is within 0.02 of the paper. 95\% bootstrap CIs are about $\pm$0.04 at 32 words and $\pm$0.12 at 256 words (\texttt{results/replication/summary.csv}).}
+\label{tab:replication}
+\end{table*}
+
+\paragraph{Results.} Table~\ref{tab:replication} compares Pythia-2.8B with the paper. Every method is within 0.02 AUC of the published value, and the ordering of the methods matches the paper's: Min-K\% first (\RepMinK{} vs 0.67), then Zlib, PPL, Smaller Ref and Lowercase. Both trends the paper reports also reproduce (Figure~\ref{fig:size}): Min-K\% improves monotonically with model size (\RepSizeTrend{} from 160M to 2.8B) and with passage length (\RepMinKShort{} at 32 words to \RepMinKLong{} at 256). In a sweep of $k$ from 5\% to 60\%, $k$=\RepBestK{}, the paper's recommended value, is the best on average. The Pythia-160M numbers match my proposal's feasibility run to three decimals, so the harness is deterministic across sessions.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\columnwidth]{figures/size_trend.pdf}
+\caption{Min-K\% AUC against Pythia size on the original WikiMIA (five sizes) and on the new data. Mean over lengths; dashed line is chance. The upward trend the paper reports reproduces on both WikiMIA and WikiMIA-2026.}
+\label{fig:size}
+\end{figure}
+
+\paragraph{How close, and why not closer.} The replication succeeds on its own terms, but two qualifications matter. First, Min-K\%'s margin over Zlib is \RepMarginZlib{} AUC, while the confidence intervals are 0.08 wide at 32 words (\RepCIShort{}) and 0.24 at 256 (\RepCILong{}): at this scale the data cannot separate Min-K\% from Zlib, and by TPR at 5\% FPR Zlib is ahead (\RepZlibTPR\% vs \RepMinKTPR\%). The paper reports single numbers without intervals, so its ranking of methods is less certain than it appears. Second, the remaining differences have identifiable causes: the paper does not state which length its Table~1 uses, so I report all four and their mean; current libraries load the models in float16 rather than the float32 that 2023 versions defaulted to; and the 5\% FPR threshold is set by only the top 1--19 non-members of each split, so TPR moves by whole percentage points when a single passage changes rank.
+
+\paragraph{Scope.} I reproduced the Pythia rows only. GPT-3 cannot be run (trap 2); models of 20B--66B parameters do not fit a T4; \textsc{Neighbor} is not in the released code; and I did not get to OPT or 8-bit 7B models, which the proposal planned, choosing to spend the time on new data instead. One model family at five sizes still tests the paper's size claim within a single training corpus, which is cleaner than comparing across families. The three case studies were scoped out in the proposal for compute and API reasons.
+
+% =====================================================================
+\section{Construction of New Data}
+\label{sec:newdata}
+
+Table~\ref{tab:datasets} summarises every dataset in the project. All are converted into the \texttt{input}/\texttt{label} schema the original code reads.
+
+\begin{table*}[t]
+\centering\small
+\begin{tabular}{@{}L{2.5cm}L{4.4cm}L{4.0cm}rL{2.0cm}@{}}
+\toprule
+\textbf{Dataset} & \textbf{Members (1)} & \textbf{Non-members (0)} & \textbf{Passages} & \textbf{Access} \\
+\midrule
+WikiMIA (original) & Wikipedia events, created before 2017 & created after 1 Jan 2023 & 1,650 & HF Hub, MIT \\
+\addlinespace
+MIMIR Wikipedia & Pile \emph{train} split & Pile \emph{test} split, same period & 6,000 & HF Hub, gated \\
+arXivTection & arXiv excerpts, papers before 2022 & papers from 2023 & 1,549 & HF Hub, MIT \\
+\addlinespace
+\textbf{WikiMIA-2026} (new) & event pages from 2012--15 categories, created before 2017 & event pages from 2026 categories, created in 2026 & 2,078 & this repo, CC BY-SA \\
+\textbf{WikiMIA-2026-matched} (new) & \multicolumn{2}{L{8.3cm}}{subset of WikiMIA-2026 matched so a text-only classifier cannot separate the classes} & 416 & this repo, CC BY-SA \\
+\textbf{Annotation set} (new) & \multicolumn{2}{L{8.3cm}}{100 member/non-member pairs from WikiMIA-2026 (64 words), years masked, labelled by 3 humans and 2 LLM judges} & 200 & this repo \\
+\bottomrule
+\end{tabular}
+\caption{Datasets. Passage counts sum over length splits (WikiMIA and WikiMIA-2026: 32/64/128/256 words; MIMIR: 2,000 passages at each of 32/64/128). Classes are balanced in every new dataset.}
+\label{tab:datasets}
+\end{table*}
+
+\subsection{Existing datasets}
+\label{sec:existing}
+
+\paragraph{MIMIR} \citep{duan2024membership,mimirdata} was built to test the objection this project examines. Its members come from the Pile's training split and its non-members from the Pile's test split, so both sides share a source and a time period; for Pythia, which was trained on exactly that training split, membership is true by construction rather than inferred from dates. I use the Wikipedia domain at the \texttt{ngram\_13\_0.8} threshold (1,000 members, 1,000 non-members) and cut each passage to its first 32, 64 and 128 words, the WikiMIA lengths every passage reaches. MIMIR is gated on Hugging Face: I requested access, keep the files out of the repository, and store only passage indices and hashes in the released results. It plays the role of the shift-controlled split ND-2 in my proposal, which planned to check passages against the Pile directly; the Pile is no longer distributed by its original host, and MIMIR already implements that design.
+
+\paragraph{arXivTection} \citep{duarte2024decop} holds 1,549 excerpts from arXiv papers, labelled by publication before 2022 or in 2023. It ships in DE-COP's multiple-choice format, one verbatim excerpt and three paraphrases per row, so an adapter keeps only the verbatim excerpt. I use it only for the blind audit (Section~\ref{sec:blind}): its dates do not match Pythia, whose Pile snapshot predates 2021, so many of its ``members'' are not Pythia members and Min-K\% on Pythia would be scored against wrong labels.
+
+\paragraph{Not used.} Of the five existing datasets in the proposal, BookTection has the same label mismatch as arXivTection and much longer passages; PatentMIA would need a Chinese-language model; and the Pile held-out splits survive only on an undocumented mirror, while MIMIR covers the same idea.
+
+\subsection{WikiMIA-2026}
+\label{sec:wikimia2026}
+
+The paper calls WikiMIA a dynamic benchmark that can be refreshed as models are released, so the most faithful new dataset re-runs its recipe with a later cut-off. \texttt{scripts/build\_wikimia2026.py} does this in five steps, using a single-threaded, rate-limited MediaWiki API client that identifies itself by the repository URL (3,110 API calls in all).
+(1)~\emph{Candidates.} For 16 event categories (disasters, crimes, competitions, festivals, awards, politics, science, sports, technology, transport, health and others) it lists pages under \texttt{Category:2026~<topic>} as non-member candidates and under \texttt{Category:2012}--\texttt{2015~<topic>} as member candidates, two levels deep, dropping lists, timelines and disambiguation pages.
+(2)~\emph{Creation date} is the timestamp of the page's first revision. A non-member must be created on or after 1 January 2026, after the training cut-off of every model used here; a member must be created before 1 January 2017, the rule the paper uses. Of 947 non-member and 795 member candidates checked, 347 and 195 were created on the wrong side of their date and rejected.
+(3)~\emph{Text} is the article's lead section, cleaned with regular expressions (reference markers, empty brackets, whitespace).
+(4)~\emph{Redirects} are followed before the date check, the title filters are applied again to the resolved title, and pages reached twice are kept once. A first build applied the filters too early; I fixed this and re-made the splits from the saved candidates, which \texttt{stats.json} records.
+(5)~\emph{Splits.} Passages are cut to the first 32, 64, 128 and 256 words and balanced by down-sampling members, giving 1,052, 686, 268 and 72 passages (half members).
+
+Two choices differ from WikiMIA deliberately. Both sides come from the \emph{same} category types, which WikiMIA does not document, to reduce topic differences between the classes. And every record stores its title, creation timestamp, page id and revision id (Figure~\ref{fig:snippets}), so the exact text can be recovered from Wikipedia even though pages keep changing. Two weaknesses remain. Member text is the \emph{current} revision, as in WikiMIA, so it may differ from what the model saw. And creation date is an imperfect label: a page created in 2026 by splitting an older article (for example ``Legault ministry'', covering 2018--2026) is a non-member by rule while its text may be old.
+
+\subsection{WikiMIA-2026-matched: a shift-controlled subset}
+\label{sec:matched}
+
+The second new dataset removes, as far as the text allows, the cues that let one tell a 2026 page from a 2014 page without the model. The blind classifier of Section~\ref{sec:blind} gives each passage an out-of-fold probability of being a member, a propensity score for the time shift \citep{rosenbaum1983central}. \texttt{scripts/shift\_controlled.py} matches each member to the nearest non-member on the logit of that score, without replacement and within a caliper of 0.2 standard deviations \citep{austin2011optimal}, and keeps only matched pairs: 194, 126, 70 and 26 passages at the four lengths, on which the blind classifier scores \ShiftBlindRange{} AUC, close to chance by construction. The subset is small, and it only removes cues a bag-of-words model can learn.
+
+\subsection{Human annotation of recency}
+\label{sec:annotation}
+
+Membership needs no human labels here, because it is defined by construction. What humans can supply is an \emph{audit}: if people can tell which passage is about the newer event with the dates hidden, the time shift is visible in the text, and a membership attack may be measuring it. The same annotations validate the LLM judges of Section~\ref{sec:judges}.
+
+\paragraph{Items.} \texttt{scripts/make\_annotation.py} draws 100 pairs (seed 2026) from the 64-word split of WikiMIA-2026, each one member and one non-member, so 200 passages in all. Every four-digit year and every season such as ``2016--17'' is replaced by \texttt{YEAR}; a regular-expression check confirms no year survives.
+
+\paragraph{Procedure.} Annotators used a self-contained offline web page that shows one pair at a time and asks ``Which passage describes the more recent event?'', with a third option, \emph{can't tell}. Each annotator sees the pairs in a different random order with the sides randomly swapped, so order and position effects average out. The instructions name the kinds of clue people use (office holders, technology, ``the 61st edition'', future tense) and ask annotators not to search the web or use AI tools. Before starting, annotators give their initials only and tick a consent statement; results are returned as a file. Three people annotated: two volunteers with no involvement in the project, and me. My annotations are reported separately, because I know the hypothesis and saw the answers to three pairs while building the task.
+
+\paragraph{Agreement.} With three annotators and three categories I report Fleiss' $\kappa$ \citep{fleiss1971measuring}, Cohen's $\kappa$ for each pair of annotators \citep{cohen1960coefficient}, and each annotator's accuracy against the known answer with a Wilson 95\% interval. Fleiss' $\kappa$ is \FleissK{} over all three categories (\FleissKDecided{} on the items all three decided), and pairwise Cohen's $\kappa$ ranges over \CohenHumanRange{}. \TODO{interpret on the Landis--Koch scale \citep{landis1977measurement} once the annotation files are in.}
+
+% =====================================================================
+\section{Results on New Data}
+\label{sec:results}
+
+Table~\ref{tab:results} collects every attack and audit result, and Figure~\ref{fig:benchmarks} shows the comparison that matters most: what Min-K\% achieves with the model against what is achievable without it.
+
+\begin{table*}[t]
+\centering\small
+\input{generated/tab_results.tex}
+\caption{AUC, mean over lengths, on every benchmark. Attacks use Pythia-2.8B and the original code. Blind baselines never query a model. ``--'' means not applicable. The judges only ever see masked text, so their MIMIR result appears under ``as released''. arXivTection is in Section~\ref{sec:blind}.}
+\label{tab:results}
+\end{table*}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{figures/benchmarks.pdf}
+\caption{Min-K\% with model access (blue) against three readers without it. On the two date-defined Wikipedia benchmarks a text-only classifier separates members from non-members far better than the attack does, and still does when every year is masked; on MIMIR, where both classes come from the same period, the text carries no signal. Min-K\% is not run on arXivTection because its labels do not match Pythia's training data (Section~\ref{sec:existing}).}
+\label{fig:benchmarks}
+\end{figure*}
+
+\subsection{Min-K\% transfers to WikiMIA-2026}
+
+On WikiMIA-2026, Min-K\% with Pythia-2.8B reaches \NewMinK{} AUC (mean of the four lengths), slightly above its \RepMinK{} on the original WikiMIA, and is again the best of the five methods (PPL \NewPPL{}, Lowercase \NewLower{}, Zlib \NewZlib{}, Smaller Ref \NewRef{}). The size trend also holds (\NewSizeTrend{} for 160M, 1.4B and 2.8B; Figure~\ref{fig:size}). Taken at face value, the paper's claims generalise: run on a fresh benchmark built the same way three years later, the method behaves as the paper says.
+
+\subsection{But the text alone separates the classes}
+\label{sec:blind}
+
+Following \citet{das2024blind}, I trained a \emph{blind} classifier that never sees a model: TF-IDF features of word unigrams and bigrams with logistic regression, evaluated by 5-fold stratified cross-validation with the vectoriser fitted inside each training fold (\texttt{scripts/blind\_baseline.py}). On WikiMIA it reaches \BlindWikiRaw{} AUC, against \RepMinK{} for Min-K\%; on WikiMIA-2026, \BlindNewRaw{} against \NewMinK{}. No learning is needed for most of this: scoring each passage by the latest year it mentions gives \BlindWikiYear{} on both. With every year masked the classifier still reaches \BlindWikiNoyr{} and \BlindNewNoyr{}, and its most informative features show why: \emph{will} and \emph{will be} for non-members, \emph{was} for members, plus topical words such as \emph{Trump}, \emph{satellite} and \emph{Iran} for 2026. On arXivTection it reaches \BlindArxRaw{} (\BlindArxNoyr{} with years masked, led by \emph{LLMs}), and this needs care: if the cross-validation is not grouped by source paper, excerpts of one paper land in both training and test folds and the AUC rises to \BlindArxLeaky{}. On MIMIR the same classifier scores \BlindMimirRange{} across lengths, which is chance: it is not simply a strong classifier, the date-defined benchmarks leak time.
+
+None of this shows Min-K\% is wrong. It shows that an AUC on a date-defined benchmark is an upper bound on what the attack detects about membership, since a reader with no access to the model does better on the same passages.
+
+\subsection{The control: MIMIR}
+
+On MIMIR the classes share a period, so only membership separates them. Min-K\% with Pythia-2.8B scores \MimirMinK{} (PPL \MimirPPL{}, Zlib \MimirZlib{}), with the size trend \MimirSizeTrend{} for 2.8B, 1.4B and 160M. \TODO{interpret: compare with \RepMinK{}/\NewMinK{}; if near 0.5 it agrees with \citet{duan2024membership}; note CI \MimirCI{}.}
+
+\subsection{How much do the year tokens explain?}
+
+Non-member passages mention recent years that Pythia has rarely seen, which are exactly the low-probability tokens Min-K\% averages. Masking every year to \texttt{YEAR} and re-running the same attack gives \MaskWikiMinK{} on WikiMIA (from \RepMinK{}) and \MaskNewMinK{} on WikiMIA-2026 (from \NewMinK{}). \TODO{interpret the size of the drop.}
+
+\subsection{Min-K\% on the shift-controlled subset}
+
+Table~\ref{tab:shift} applies the propensity controls of Section~\ref{sec:matched}. On the matched subsets the blind classifier is near chance (\ShiftBlindRange{}), yet Min-K\% keeps an AUC of \ShiftMinKRange{} (weighted mean \ShiftMinKPooled{}), close to its full-set values; stratifying on the blind score instead of matching gives the same picture. Min-K\% is therefore not simply re-detecting the cues a bag-of-words model finds. Two caveats keep this from being proof of memorisation. The subsets are small (\ShiftNMin{}--\ShiftNMax{} passages) and the intervals wide. And a name that first appears in 2026 is invisible to TF-IDF, which needs to see a word in training, but is exactly what a language model trained in 2020 finds improbable: novelty of this kind is still time, not membership. Only a benchmark without a time gap, such as MIMIR, separates the two.
+
+\begin{table}[t]
+\centering\scriptsize
+\setlength{\tabcolsep}{2.6pt}
+\input{generated/tab_shift.tex}
+\caption{Shift-controlled evaluation. \emph{Matched}: members and non-members paired on the blind TF-IDF score (Section~\ref{sec:matched}); $n$ passages; the blind classifier's own AUC on the subset, then Min-K\%'s with a bootstrap 95\% CI. \emph{Stratified}: Min-K\% AUC over member/non-member pairs in the same blind-score quintile.}
+\label{tab:shift}
+\end{table}
+
+\subsection{Humans and LLM judges on the same pairs}
+\label{sec:judges}
+
+\paragraph{Role of the LLM judge.} Membership is not a property of the text, so an LLM judge cannot replace the ground truth or the AUC metric; a judge that could tell members from non-members by reading would be evidence of a broken benchmark, not a working one. The judge instead automates the human audit of Section~\ref{sec:annotation}: once its agreement with humans is known, it can audit every passage of every benchmark, which three people cannot. I used two small open models from different families, Qwen2.5-3B-Instruct \citep{qwen2024qwen25} and Phi-3.5-mini-instruct \citep{abdin2024phi3}, in float16 on a T4 (notebook \texttt{04\_controls\_and\_judge}). Each judge receives the annotators' instructions and both passages and must answer A or B. The verdict is read from the probabilities of the answer tokens rather than from generated text, so no parsing is needed and every answer carries a confidence; the probability mass on the two letters (\JudgeQwenMass{} and \JudgePhiMass{}) confirms the judges answer in format. Each pair is asked twice with the passages swapped, which measures position bias, a known weakness of LLM judges \citep{zheng2023judging}, and the two probabilities are averaged to cancel it.
+
+\paragraph{Results.} Table~\ref{tab:annotation} gives accuracy on the 100 pairs, where a correct answer picks the 2026 passage. Because the share of member/non-member pairs a scorer orders correctly estimates its AUC, these accuracies are on the same scale as every other number in the paper. Humans reach \HumanAccRange{} (majority vote \MajorityAcc{}); the judges reach \JudgeQwenPairAcc{} (Qwen) and \JudgePhiPairAcc{} (Phi), with order-swapped verdicts agreeing on \JudgeQwenConsistent{} and \JudgePhiConsistent{} of pairs; Cohen's $\kappa$ against the human majority is \KappaQwenMajority{} and \KappaPhiMajority{}, and between the two judges \KappaJudges{}. On the same pairs Min-K\% orders \PairMinK{} correctly, against \PairBlind{} for the blind classifier on raw text and \PairBlindNoyr{} with years masked. Run over every passage one at a time, the judges' AUC is \JudgeQwenWiki{} (Qwen) on WikiMIA, \JudgeQwenNew{} on WikiMIA-2026 and \JudgeQwenMimir{} on MIMIR. \TODO{interpret once results are in.}
+
+\begin{table}[t]
+\centering\small
+\input{generated/tab_annotation.tex}
+\caption{Accuracy on the 100 annotated pairs (64 words, years masked); a correct answer identifies the 2026 passage. \emph{Decided} excludes ``can't tell''. A1 is the author. Wilson 95\% intervals.}
+\label{tab:annotation}
+\end{table}
+
+\subsection{How the new results relate to the replication}
+
+The replication and the new data agree on the paper's \emph{measurements}: on two date-defined benchmarks built three years apart, Min-K\% beats the other attacks by a similar margin and improves with model size. They disagree on the \emph{interpretation}: on both, text-only readers do far better than the attack, and \TODO{MIMIR and masking verdict}.
+
+% =====================================================================
+\section{Ethical Considerations}
+\label{sec:ethics}
+
+\paragraph{In the original paper.} Membership inference is a privacy attack: a reliable detector can reveal that a person's text, such as an email, medical note or forum post, was in a model's training set. The paper frames its use as defensive (copyright, contamination, unlearning audits), but the same tool serves an adversary, and the copyright case study uses snippets of in-copyright books. WikiMIA is released under MIT, while its passages are Wikipedia text licensed CC BY-SA 4.0 \citep{wikipediacopyright}, which requires attribution and share-alike; records carry no title or page identifier, so attribution cannot be recovered from the dataset. A paper about detecting unlicensed use of text should model licence compliance in its own data.
+
+\paragraph{Publishing on the new data.} Under the \emph{Australian Code for the Responsible Conduct of Research} \citep{acrcr2018}, the principles most at stake are \emph{honesty} and \emph{transparency} in reporting and \emph{fairness} in the use of others' work. I report results that weaken the paper's interpretation alongside those that support it, give confidence intervals rather than single numbers, release every script, log and per-passage score, and record the bug fixed in the dataset build rather than hiding it. Credit goes to the original authors, the data creators and Wikipedia's editors. WikiMIA-2026 is released under CC BY-SA 4.0 with each passage's title and revision id, so attribution and the exact text are recoverable. MIMIR's access terms are respected: the files are kept out of the public repository and results store only indices and hashes. Each model was used under its published licence.
+
+Wikipedia event pages name real people. Seventeen WikiMIA-2026 pages (about 1.5\%) are about the killing, murder or kidnapping of a named person, often a private individual; one concerns a five-year-old Aboriginal Australian girl, whose page already uses a cultural substitute name, and protocols around naming deceased Aboriginal and Torres Strait Islander people apply. The text is already public, but republishing it in a research dataset concentrates it, so for publication I would exclude these pages, honour removal requests, and keep them out of figures, as I did in Figure~\ref{fig:snippets}. I found these pages only after the annotation task was sent: five of the 100 pairs describe killings, including that child's, and annotators were not warned. A repeat must screen items for distressing content and say so in the consent statement.
+
+The annotation is human research under the \emph{National Statement} \citep{nationalstatement2023}. Its risk is low, no more than the inconvenience of 30--40 minutes of reading: participation was voluntary and unpaid, consent was recorded on the page, only initials were collected, annotators could stop at any time, and released files replace initials with A1--A3. For a class project I did not seek formal review; for a publication the study would need low-risk ethics review before any data were collected, and my two volunteers being acquaintances creates a mild pressure to agree that a review would consider. Membership inference itself is dual use, but this project adds no attack capability; its findings, that benchmark AUCs overstate what attacks detect, mainly help those assessing claims about models. Compute was a few T4 GPU-hours. Generative AI assistance is declared in Appendix~\ref{app:ai}, as Macquarie University policy requires.
+
+% =====================================================================
+\section{Conclusions and Reflections}
+\label{sec:conclusion}
+
+\paragraph{Replication.} The paper replicates. With the authors' unmodified code and current libraries, Min-K\% on WikiMIA with Pythia-2.8B scores \RepMinK{} against the published 0.67, all five methods are within 0.02, and the size and length trends hold. Getting there required finding six traps in the code, one of which (the double negation) silently inverts results for a careless reimplementation. The paper's ranking of Min-K\% over Zlib is within sampling noise at Pythia scale.
+
+\paragraph{Generalisation.} The method transfers to a benchmark built the same way three years later, and that is the problem: the same benchmarks are separable without any model at AUC 0.95, by dates, tense and topic. \TODO{MIMIR and masking conclusion.} The shift-controlled subset suggests Min-K\% carries signal beyond what a bag-of-words model sees, but the subset is small and that signal may still be novelty rather than membership.
+
+\paragraph{Reflections.} Building WikiMIA-2026 with matched categories did not remove the confound, because time leaks through the language of the text and not only through its topic; a date-defined benchmark is confounded by design, and the better construction defines membership from a known corpus, as MIMIR does. Reading the data was as valuable as running the code: the redirect bug, the page-split label noise and the passages about named victims were all found by looking at examples, not at metrics. Annotation was harder than expected. Recency is often genuinely ambiguous with the dates hidden, the right number of ``can't tell'' answers is unclear, and recruiting even two annotators took longer than the rest of the dataset work, which left it until the last week. Finally, I would plan compute-heavy controls earlier: the MIMIR run was possible from Week 9 but ran last, and the final interpretation waited on it.
+
+\bibliography{refs}
+
+\appendix
+
+\section{Use of Generative AI}
+\label{app:ai}
+
+I used Claude (Anthropic) as a coding and writing assistant: to draft and debug the data-collection, analysis and notebook-generation scripts, to suggest the controls and statistics, to check the original code for traps, and to draft and edit text in this report. I ran every experiment, checked the code paths and outputs, read the cited papers, and take responsibility for all content. Every number in the report is generated from the result files by \texttt{scripts/make\_report\_assets.py}.
+
+\section{LLM-judge prompts}
+\label{app:prompts}
+
+Both judges receive one user message through their own chat template, with no system message other than the template default.
+
+\noindent\textbf{Pairwise} (\texttt{\{a\}}, \texttt{\{b\}} are the masked passages): \emph{Below are two passages, each from the start of a Wikipedia article. Every year has been replaced with the word YEAR. One passage describes an older event and the other describes a newer event. Clues people use: names of politicians or office holders, technology, how many times an event has already happened (``the 61st edition''), whether the text says something will happen, and so on. Passage A: """\{a\}""" Passage B: """\{b\}""" Which passage describes the more recent event? Answer with a single letter: A or B.}
+
+\noindent\textbf{Pointwise}: \emph{Below is a passage from the start of a Wikipedia article. Every year has been replaced with the word YEAR. [same clues] Passage: """\{text\}""" Is the event or topic of this article from before 2017, or from 2023 or later? A) before 2017 B) 2023 or later. Answer with a single letter: A or B.}
+
+\end{document}

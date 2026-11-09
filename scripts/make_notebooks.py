@@ -333,3 +333,322 @@ from google.colab import files
 files.download('/content/wikimia2026_results.zip')
 '''),
 ])
+
+# --------------------------------------------------------------------------
+# Notebook 4: the controls (MIMIR, years masked) and the LLM-as-judge recency audit
+# --------------------------------------------------------------------------
+write("04_controls_and_judge.ipynb", [
+    md(r'''
+# Final experiments: is Min-K% detecting membership, or detecting *time*?
+
+**Runtime → Change runtime type → T4 GPU**, then **Runtime → Run all**. About 1.5 hours.
+You will be asked twice for something:
+1. **Google Drive access**: allow it. Every result is written to `My Drive/COMP8240/` as soon as it is
+   computed, so if Colab disconnects you just **Run all** again and finished parts are skipped.
+2. **Upload MIMIR** (first run only): choose the two `.jsonl` files from `data/external/mimir/` on your
+   laptop. MIMIR is gated on Hugging Face, so it is never put in the public repository.
+
+| Part | Question | Data | Model |
+|---|---|---|---|
+| A | Does Min-K% still work when members and non-members come from the **same time**? | MIMIR Wikipedia (Pile train vs Pile test) | Pythia 160M / 1.4B / 2.8B |
+| B | How much of the AUC comes from **year tokens**? | WikiMIA and WikiMIA-2026, every year → `YEAR` | Pythia-2.8B |
+| C | Can a reader with **no access to Pythia** tell members from non-members? (LLM-as-judge) | the 100 human-annotated pairs + every benchmark, years masked | Qwen2.5-3B-Instruct, Phi-3.5-mini-instruct |
+
+Parts A and B call the **original, unmodified** `run.py` exactly as notebooks 01–02 do. At the end a zip of
+the new results downloads; unzip it in the repository folder (it contains `results/...`).
+'''),
+    SETUP,
+    DRIVER,
+    code(r'''
+# ---- Results go to Google Drive, so a disconnect loses nothing (Run all again resumes) ----
+USE_DRIVE = True
+if USE_DRIVE:
+    from google.colab import drive
+    drive.mount('/content/drive')
+    BASE = '/content/drive/MyDrive/COMP8240'
+else:
+    BASE = '/content'
+RES = f'{BASE}/results'
+os.makedirs(RES, exist_ok=True)
+
+# ---- This project's repository: WikiMIA-2026, the annotation pairs and the year-masking function ----
+!git clone --quiet https://github.com/Ashik-here/COMP8240-MinK-Replication.git /content/mine 2>/dev/null || (cd /content/mine && git pull --quiet)
+!cd /content/mine && git log -1 --format='project repo @ %h (%ad)' --date=short
+sys.path.append('/content/mine/scripts')
+from make_annotation import mask_years          # exactly the masking the human annotators saw
+LENGTHS = [32, 64, 128, 256]
+TARGET = 'EleutherAI/pythia-2.8b'
+MAIN = ['PPL', 'Zlib', 'Lowercase', 'Smaller Ref', 'Min-20%']
+
+# Gated data must never reach the public repository. With KEEP_TEXT = False the per-passage score
+# files store the passage index and a short fingerprint (hash) of its text, not the text itself.
+# (This replaces the driver's save_jsonl.)
+import hashlib
+fp = lambda text: hashlib.sha1(text.encode('utf-8')).hexdigest()[:12]
+KEEP_TEXT = True
+def save_jsonl(rows, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        for i, r in enumerate(rows):
+            rec = {'idx': i, 'h': fp(r['input']), 'label': int(r['label']), 'pred': r['pred']}
+            if KEEP_TEXT:
+                rec['input'] = r['input']
+            f.write(json.dumps(rec) + '\n')
+
+def boot_auc(y, s, n=1000, seed=0):
+    rng = np.random.default_rng(seed); vals = []
+    for _ in range(n):
+        i = rng.integers(0, len(y), len(y))
+        if 0 < y[i].sum() < len(i):
+            vals.append(roc_auc_score(y[i], s[i]))
+    return np.percentile(vals, [2.5, 97.5])
+
+# WikiMIA-2026 is read in FILE order. (The original eval.load_jsonl shuffles with random.seed(0), so the
+# scores from notebook 02 are in that shuffled order: harmless for AUC, but it would break joins by index.)
+wm26 = {L: [json.loads(l) for l in open(f'/content/mine/data/wikimia2026/WikiMIA2026_length{L}.jsonl',
+                                        encoding='utf-8')] for L in LENGTHS}
+wikimia = {L: R.convert_huggingface_data_to_list_dic(
+               R.load_dataset('swj0419/WikiMIA', split=f'WikiMIA_length{L}')) for L in LENGTHS}
+print('WikiMIA', {L: len(v) for L, v in wikimia.items()}, '| WikiMIA-2026', {L: len(v) for L, v in wm26.items()})
+print('results ->', RES)
+'''),
+    md(r'''
+## Part A. Min-K% on MIMIR: the control with no time gap
+
+MIMIR (Duan et al., COLM 2024) takes members from the Pile's **training** split and non-members from its
+**test** split: same source, same time period, so there is no date or topic shift to exploit. The blind
+text classifier already scores chance here (0.48–0.55). If Min-K% also falls to about 0.5, its WikiMIA
+AUC reflects the time gap rather than memorisation.
+'''),
+    code(r'''
+MIMIR_DIR = f'{BASE}/mimir_private'             # your Drive only; never committed
+MIMIR_FILES = {1: 'wikipedia_en_ngram_13_0.8_train_members.jsonl',     # Pile train -> members
+               0: 'wikipedia_en_ngram_13_0.8_test_nonmembers.jsonl'}   # Pile test  -> non-members
+os.makedirs(MIMIR_DIR, exist_ok=True)
+if not all(os.path.exists(f'{MIMIR_DIR}/{f}') for f in MIMIR_FILES.values()):
+    from google.colab import files
+    print('Click "Choose files" and select BOTH of these (from data/external/mimir/ on your laptop):',
+          *MIMIR_FILES.values(), sep='\n  ')
+    for name, content in files.upload().items():
+        clean = re.sub(r' \(\d+\)(?=\.jsonl$)', '', name)     # Colab renames repeats to "name (1).jsonl"
+        open(f'{MIMIR_DIR}/{clean}', 'wb').write(content)
+missing = [f for f in MIMIR_FILES.values() if not os.path.exists(f'{MIMIR_DIR}/{f}')]
+assert not missing, f'still missing {missing}: run this cell again and choose both files'
+
+# Same construction as scripts/blind_baseline.py (members first, each passage cut to its first L words),
+# so passage indices line up with the blind-baseline results.
+mimir_text = {lab: [json.loads(l) for l in open(f'{MIMIR_DIR}/{f}', encoding='utf-8') if l.strip()]
+              for lab, f in MIMIR_FILES.items()}
+MIMIR_LENGTHS = [32, 64, 128]                   # every MIMIR passage has at least 100 words
+mimir = {L: [{'input': ' '.join(t.split()[:L]), 'label': lab} for lab in (1, 0) for t in mimir_text[lab]]
+         for L in MIMIR_LENGTHS}
+print({L: len(v) for L, v in mimir.items()}, '| members:', sum(x['label'] for x in mimir[64]))
+'''),
+    code(r'''
+MIMIR_MODELS = ['EleutherAI/pythia-2.8b', 'EleutherAI/pythia-1.4b', 'EleutherAI/pythia-160m']   # biggest first
+OUT_MIMIR = f'{RES}/mimir'
+rows = []
+KEEP_TEXT = False                               # gated data: indices only
+try:
+    for target in MIMIR_MODELS:
+        rows += run_model(target, [(L, mimir[L]) for L in MIMIR_LENGTHS], OUT_MIMIR, 'MIMIR-Wikipedia')
+        pd.DataFrame(rows).to_csv(f'{OUT_MIMIR}/summary.csv', index=False)
+finally:
+    KEEP_TEXT = True
+json.dump(ENV, open(f'{OUT_MIMIR}/environment.json', 'w'), indent=1)
+t = pd.DataFrame(rows)
+t = t[t.method.isin(MAIN)].pivot_table(index=['model', 'method'], columns='length', values='auc')
+t['mean'] = t.mean(axis=1); display(t.round(3))
+'''),
+    md(r'''
+## Part B. Min-K% with every year masked
+
+The same Pythia-2.8B attack on the same passages, with every year (and season such as `2016–17`) replaced
+by `YEAR`, the masking the annotators and the blind classifier saw. Non-member passages mention recent
+years that Pythia has rarely seen, which are exactly the low-probability tokens Min-K% averages over.
+If the AUC drops a lot, the year tokens were doing much of the work.
+'''),
+    code(r'''
+masked = {'WikiMIA': {L: [dict(ex, input=mask_years(ex['input'])) for ex in wikimia[L]] for L in LENGTHS},
+          'WikiMIA-2026': {L: [dict(ex, input=mask_years(ex['input'])) for ex in wm26[L]] for L in LENGTHS}}
+for name, src in [('WikiMIA', wikimia), ('WikiMIA-2026', wm26)]:
+    n = sum(len(src[L]) for L in LENGTHS)
+    k = sum(m['input'] != s['input'] for L in LENGTHS for m, s in zip(masked[name][L], src[L]))
+    print(f'{name}: {k} of {n} passages had at least one year masked')
+
+rows = []
+for name, d in masked.items():
+    rows += run_model(TARGET, [(L, d[L]) for L in LENGTHS], f'{RES}/year_masked/{name.lower()}',
+                      f'{name} (years masked)')
+    pd.DataFrame(rows).to_csv(f'{RES}/year_masked/summary.csv', index=False)
+json.dump(ENV, open(f'{RES}/year_masked/environment.json', 'w'), indent=1)
+'''),
+    md("### Parts A + B together: Pythia-2.8B on every benchmark (AUC, mean over lengths)"),
+    code(r'''
+allres = pd.concat([pd.read_csv('/content/mine/results/replication/summary.csv'),
+                    pd.read_csv('/content/mine/results/wikimia2026/summary.csv'),
+                    pd.read_csv(f'{RES}/year_masked/summary.csv'),
+                    pd.read_csv(f'{OUT_MIMIR}/summary.csv')])
+ORDER = ['WikiMIA', 'WikiMIA (years masked)', 'WikiMIA-2026', 'WikiMIA-2026 (years masked)', 'MIMIR-Wikipedia']
+cmp = (allres[(allres.model == TARGET) & allres.method.isin(MAIN)]
+       .groupby(['dataset', 'method']).auc.mean().unstack().reindex(ORDER)[MAIN])
+display(cmp.round(3))      # MIMIR: mean of lengths 32/64/128; the others: 32/64/128/256
+'''),
+    md(r'''
+## Part C. LLM-as-judge recency audit
+
+Two small open judges from different model families do the **human annotators' task** on the same 100 pairs
+(years masked, same instructions). Each pair is asked twice with the passages swapped, to measure and cancel
+**position bias**. The verdict is read from the **probability of the answer token** (`A` vs `B`), not from
+generated text, so nothing needs parsing and every answer comes with a confidence.
+
+Once the judges' agreement with the humans is known (Cohen's κ, computed locally), the same judges score
+**every passage of every benchmark** one at a time. Their AUC is a "world-knowledge blind baseline": how well
+members and non-members can be told apart by someone who has never seen Pythia's training data.
+'''),
+    code(r'''
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from tqdm.auto import tqdm
+
+JUDGES = ['Qwen/Qwen2.5-3B-Instruct', 'microsoft/Phi-3.5-mini-instruct']   # open licences, fit a T4 in fp16
+OUT_J = f'{RES}/llm_judge'
+
+HINT = ('Clues people use: names of politicians or office holders, technology, how many times an event has '
+        'already happened ("the 61st edition"), whether the text says something will happen, and so on.')
+PAIR_PROMPT = ('Below are two passages, each from the start of a Wikipedia article. Every year has been replaced '
+               'with the word YEAR. One passage describes an older event and the other describes a newer event.'
+               '\n\n' + HINT + '\n\nPassage A: """{a}"""\n\nPassage B: """{b}"""\n\n'
+               'Which passage describes the more recent event? Answer with a single letter: A or B.')
+POINT_PROMPT = ('Below is a passage from the start of a Wikipedia article. Every year has been replaced with the '
+                'word YEAR.\n\n' + HINT + '\n\nPassage: """{text}"""\n\n'
+                'Is the event or topic of this article from before 2017, or from 2023 or later?\n'
+                'A) before 2017\nB) 2023 or later\n\nAnswer with a single letter: A or B.')
+
+def letter_ids(tok, letter):
+    """Every token id that spells the bare answer letter, however the tokenizer writes it."""
+    vocab = tok.get_vocab()
+    ids = {vocab[s] for s in (letter, '▁' + letter, 'Ġ' + letter) if s in vocab}
+    for s in (letter, ' ' + letter, '\n' + letter):
+        t = tok.encode(s, add_special_tokens=False)
+        if t and tok.decode(t[-1:]).strip() == letter:
+            ids.add(t[-1])
+    return sorted(ids)
+
+def load_judge(name):
+    tok = AutoTokenizer.from_pretrained(name)
+    model = AutoModelForCausalLM.from_pretrained(name, dtype=torch.float16).to('cuda').eval()
+    return model, tok, letter_ids(tok, 'A'), letter_ids(tok, 'B')
+
+@torch.no_grad()
+def ask(judge, prompt):
+    """Probability-of-token verdict: P('A') and P('B') as the first token of the answer."""
+    model, tok, A, B = judge
+    text = tok.apply_chat_template([{'role': 'user', 'content': prompt}], tokenize=False,
+                                   add_generation_prompt=True)
+    ids = tok(text, return_tensors='pt', add_special_tokens=False).input_ids.to('cuda')
+    try:
+        logits = model(ids, logits_to_keep=1).logits[0, -1]
+    except TypeError:                           # older transformers without logits_to_keep
+        logits = model(ids).logits[0, -1]
+    p = torch.softmax(logits.float(), -1)
+    pa, pb = p[A].sum().item(), p[B].sum().item()
+    assert np.isfinite(pa + pb) and pa + pb > 0, 'non-finite answer probabilities (fp16 overflow?)'
+    return pa, pb
+
+pairs = [json.loads(l) for l in open('/content/mine/annotation/pairs_for_annotators.jsonl', encoding='utf-8')]
+POINT_SETS = {'WikiMIA': masked['WikiMIA'], 'WikiMIA-2026': masked['WikiMIA-2026'],
+              'MIMIR-Wikipedia': {L: [dict(ex, input=mask_years(ex['input'])) for ex in mimir[L]]
+                                  for L in MIMIR_LENGTHS}}
+
+def write_rows(rows, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, 'w') as f:
+        f.writelines(json.dumps(r) + '\n' for r in rows)
+
+def run_judge(name):
+    tag = name.split('/')[-1]
+    pair_file = f'{OUT_J}/pairs_{tag}.jsonl'
+    jobs = [(ds, L) for ds, d in POINT_SETS.items() for L in d
+            if not os.path.exists(f'{OUT_J}/pointwise/{tag}_{ds}_len{L}.jsonl')]
+    if os.path.exists(pair_file) and not jobs:
+        return print(f'{name}: already done')
+    t0 = time.time(); judge = load_judge(name)
+    print(f'{name}: loaded in {time.time()-t0:.0f}s; answer tokens A={judge[2]} B={judge[3]}')
+    if not os.path.exists(pair_file):
+        rows = []
+        for p in tqdm(pairs, desc='100 pairs x 2 orders'):
+            a, b = p['passages']
+            ab = ask(judge, PAIR_PROMPT.format(a=a, b=b))          # passage 0 shown as A
+            ba = ask(judge, PAIR_PROMPT.format(a=b, b=a))          # swapped: passage 0 shown as B
+            rows.append({'id': p['id'], 'judge': name, 'ab': ab, 'ba': ba,
+                         'p0_newer': 0.5 * (ab[0] / sum(ab) + ba[1] / sum(ba))})
+        write_rows(rows, pair_file)
+    for ds, L in jobs:                          # no passage text is stored, only indices and scores
+        rows = []
+        for i, ex in enumerate(tqdm(POINT_SETS[ds][L], desc=f'{ds} len {L}')):
+            pa, pb = ask(judge, POINT_PROMPT.format(text=ex['input']))
+            rows.append({'idx': i, 'h': fp(ex['input']), 'label': int(ex['label']),
+                         'p_newer': pb / (pa + pb), 'mass': pa + pb})
+        write_rows(rows, f'{OUT_J}/pointwise/{tag}_{ds}_len{L}.jsonl')
+        y = np.array([r['label'] for r in rows]); s = 1 - np.array([r['p_newer'] for r in rows])
+        print(f'  {ds} len {L}: AUC {roc_auc_score(y, s):.3f}')
+    del judge
+
+for name in JUDGES:                             # one judge failing must not stop the other
+    try:
+        run_judge(name)
+    except Exception as e:
+        print(f'!! {name} failed and was skipped: {type(e).__name__}: {e}')
+    gc.collect(); torch.cuda.empty_cache()
+'''),
+    md("### Judge results"),
+    code(r'''
+# Ground truth for this printout only: map each masked WikiMIA-2026 passage back to its label.
+truth = {mask_years(r['input']): r['label'] for r in wm26[64]}
+newer = {p['id']: [truth[x] for x in p['passages']].index(0) for p in pairs}   # index of the 2026 passage
+
+rows = []
+for name in JUDGES:
+    f = f'{OUT_J}/pairs_{name.split("/")[-1]}.jsonl'
+    if not os.path.exists(f):
+        continue
+    J = [json.loads(l) for l in open(f)]
+    gold = np.array([newer[r['id']] == 0 for r in J])            # True when passage 0 is the newer one
+    v1 = np.array([r['ab'][0] > r['ab'][1] for r in J])          # "passage 0 is newer", shown as A
+    v2 = np.array([r['ba'][1] > r['ba'][0] for r in J])          # "passage 0 is newer", shown as B
+    deb = np.array([r['p0_newer'] > 0.5 for r in J])
+    pA = [r['ab'][0] / sum(r['ab']) for r in J] + [r['ba'][0] / sum(r['ba']) for r in J]
+    rows.append({'judge': name, 'accuracy (A/B order 1)': (v1 == gold).mean(),
+                 'accuracy (order 2)': (v2 == gold).mean(), 'accuracy (both orders averaged)': (deb == gold).mean(),
+                 'same verdict both orders': (v1 == v2).mean(), 'mean P(answer A)': np.mean(pA),
+                 'P(A)+P(B)': np.mean([sum(r['ab']) for r in J] + [sum(r['ba']) for r in J])})
+pair_summary = pd.DataFrame(rows); pair_summary.to_csv(f'{OUT_J}/summary_pairs.csv', index=False)
+print('On the 100 human-annotated pairs (chance = 0.5; mean P(answer A) = 0.5 means no position bias):')
+display(pair_summary.round(3))
+
+rows = []
+for name in JUDGES:
+    for ds, d in POINT_SETS.items():
+        for L in d:
+            f = f'{OUT_J}/pointwise/{name.split("/")[-1]}_{ds}_len{L}.jsonl'
+            if not os.path.exists(f):
+                continue
+            J = [json.loads(l) for l in open(f)]
+            y = np.array([r['label'] for r in J]); s = 1 - np.array([r['p_newer'] for r in J])
+            lo, hi = boot_auc(y, s)
+            rows.append(dict(judge=name, dataset=ds, length=L, n=len(y), auc=roc_auc_score(y, s),
+                             auc_lo=lo, auc_hi=hi, answer_mass=np.mean([r['mass'] for r in J])))
+point_summary = pd.DataFrame(rows); point_summary.to_csv(f'{OUT_J}/summary_pointwise.csv', index=False)
+json.dump(ENV, open(f'{OUT_J}/environment.json', 'w'), indent=1)
+print('Pointwise AUC, years masked (compare with Min-K% above; MIMIR should be about 0.5):')
+t = point_summary.pivot_table(index=['judge', 'dataset'], columns='length', values='auc')
+t['mean'] = t.mean(axis=1); display(t.round(3))
+'''),
+    md("## Download the new results (also kept in `My Drive/COMP8240/results`)"),
+    code(r'''
+!rm -f /content/new_results.zip && cd {BASE} && zip -qr /content/new_results.zip results/mimir results/year_masked results/llm_judge
+!unzip -l /content/new_results.zip | tail -1
+from google.colab import files
+files.download('/content/new_results.zip')
+'''),
+])

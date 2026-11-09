@@ -1,0 +1,17 @@
+\begin{tabular}{@{}llrcccc@{}}
+\toprule
+& & & \multicolumn{2}{c}{\textbf{matched subset}} & \multicolumn{2}{c}{\textbf{Min-K\% AUC}} \\
+\cmidrule(lr){4-5}\cmidrule(lr){6-7}
+\textbf{Data} & $L$ & $n$ & blind & Min-K\% [95\% CI] & full set & stratified \\
+\midrule
+WikiMIA & 32 & 100 & 0.57 & 0.60 [0.49, 0.71] & 0.62 & 0.60 \\
+ & 64 & 64 & 0.62 & 0.63 [0.49, 0.76] & 0.61 & 0.65 \\
+ & 128 & 50 & 0.56 & 0.53 [0.36, 0.70] & 0.67 & 0.54 \\
+ & 256 & 36 & 0.54 & 0.76 [0.59, 0.92] & 0.70 & 0.75 \\
+\addlinespace
+WikiMIA-2026 & 32 & 194 & 0.54 & 0.62 [0.54, 0.69] & 0.65 & 0.62 \\
+ & 64 & 126 & 0.55 & 0.65 [0.55, 0.74] & 0.67 & 0.66 \\
+ & 128 & 70 & 0.53 & 0.74 [0.62, 0.86] & 0.71 & 0.72 \\
+ & 256 & 26 & 0.50 & 0.74 [0.52, 0.92] & 0.67 & 0.77 \\
+\bottomrule
+\end{tabular}

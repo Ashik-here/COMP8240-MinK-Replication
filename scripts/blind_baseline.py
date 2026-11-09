@@ -8,7 +8,12 @@ Three blind scorers, all evaluated per length bucket:
   * max_year      : no learning at all. Score = the largest 4-digit year mentioned (newer => non-member).
   * tfidf_lr      : TF-IDF (1-2 grams) + logistic regression, 5-fold stratified CV inside a Pipeline,
                     so the vectoriser is refit on each training fold (no test leakage).
-  * tfidf_lr_noyr : the same, after masking every year as "YEAR", to see what leaks beyond dates.
+  * tfidf_lr_noyr : the same, after masking every year (and season, e.g. 2016-17) as "YEAR", to see what
+                    leaks beyond dates. The masking is make_annotation.mask_years, the one the human
+                    annotators, the LLM judge and the year-masked Min-K% run (notebook 04) all use.
+
+Per-passage out-of-fold scores are saved in results/blind_baseline/scores/ (indices and labels only, no text),
+in the same order as the datasets, so they can be joined with the Min-K% scores (scripts/shift_controlled.py).
 
 Usage:  python scripts/blind_baseline.py            (WikiMIA is downloaded once and cached in data/external)
 """
@@ -25,6 +30,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold, cross_val_predict
 from sklearn.pipeline import make_pipeline
+
+from make_annotation import mask_years
 
 LENGTHS = [32, 64, 128, 256]
 YEAR = re.compile(r"\b(1[5-9]\d\d|20\d\d)\b")
@@ -148,12 +155,17 @@ def main():
             texts = [x["input"] for x in data[L]]
             y = np.array([int(x["label"]) for x in data[L]])
             groups = [x["paper"] for x in data[L]] if "paper" in data[L][0] else None
-            masked = [YEAR.sub("YEAR", t) for t in texts]
+            masked = [mask_years(t) for t in texts]
             scorers = {"max_year": -max_year_score(texts),          # newer year => less likely a member
                        "tfidf_lr": cv_scores(texts, y, groups),
                        "tfidf_lr_noyr": cv_scores(masked, y, groups)}
             if groups is not None:                                  # the leaky version, for comparison
                 scorers["tfidf_lr_ungrouped_LEAKY"] = cv_scores(texts, y)
+            (out / "scores").mkdir(exist_ok=True)
+            with open(out / "scores" / f"{name}_len{L}.jsonl", "w", encoding="utf-8") as f:
+                for i in range(len(y)):
+                    f.write(json.dumps({"idx": i, "label": int(y[i]),
+                                        **{m: float(s[i]) for m, s in scorers.items()}}) + "\n")
             for method, s in scorers.items():
                 lo, hi = boot_ci(y, s)
                 rows.append(dict(dataset=name, length=L, n=len(y), method=method,

@@ -20,5 +20,17 @@ build.log
 # ...but keep the dataset's own build log (provenance)
 !data/wikimia2026/raw/**/build.log
 
+# Answer key of the human annotation: kept local until all annotators have finished, then committed
+data/annotation/pairs.jsonl
+# Annotators' raw result files (initials only); summarised in results/annotation/
+data/annotation/responses/
+
 # Private presentation notes
 report/update_presentation/notes/
+
+# LaTeX build by-products
+*.fdb_latexmk
+*.fls
+*.blg
+*.bbl
+build_out.txt

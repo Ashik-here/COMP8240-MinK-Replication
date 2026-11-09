@@ -24,6 +24,9 @@ and [Das et al. (2024)](https://arxiv.org/abs/2406.16201) show blind baselines b
 ```
 notebooks/01_replication_sweep.ipynb    P1: original code on WikiMIA, Pythia 160M-2.8B, all 4 lengths (Colab T4)
 notebooks/02_wikimia2026_attack.ipynb   P3: the same attack on WikiMIA-2026
+notebooks/04_controls_and_judge.ipynb   controls (MIMIR, years masked) and the LLM-as-judge recency audit
+scripts/make_annotation.py              builds the 100-pair human annotation task (years masked)
+annotation/annotate.html                the offline annotation page given to annotators (no answer key)
 notebooks/feasibility_check.ipynb       the proposal's first end-to-end run (Pythia-160M)
 scripts/build_wikimia2026.py            builds WikiMIA-2026 from the MediaWiki API
 scripts/blind_baseline.py               text-only membership classifiers (no model access)
@@ -81,6 +84,9 @@ Each is a real trap for a replicator.
 4. The repository ships a committed `out/` directory with the **authors' own LLaMA-13B results**; any
    script that globs for `auc.txt` can pick those up instead of your own run.
 5. `eval.py` labels its third number "TPR@0.1%FPR" in `auc.txt`, but computes TPR at **5%** FPR.
+6. `eval.load_jsonl` silently **shuffles** the rows (`random.seed(0); random.shuffle`). AUC is unaffected, but
+   per-passage outputs no longer line up with the input file by position, so any later join must use the
+   text (or a hash of it), never the row index. Notebook 04 reads local data itself, in file order.
 
 Also: Table 1 of the paper does not state which length bucket it reports, so all four are reported here,
 plus their mean.
