@@ -58,6 +58,45 @@ def main():
     (ROOT / "annotation/annotate.html").write_text(html, encoding="utf-8")
     print(f"{len(pairs)} pairs -> data/annotation/pairs.jsonl and annotation/annotate.html")
     print("years left after masking:", sum(bool(YEAR.search(t)) for p in pairs for t in p["passages"]))
+    build_round2(pairs, page_items, template)
+
+
+# Round 2 (added after round 1, in which all three annotators skimmed at a median of 1.5-4 s per pair):
+# fewer pairs, answer buttons locked for 10 s per pair, and a content note. Pairs whose answers the author saw
+# while building the task, and pairs about the killing of a named person, are left out.
+ROUND2_N, ROUND2_LOCK_MS = 40, 10_000
+SEEN_BY_AUTHOR = {"p000", "p001", "p002"}
+PERSON_EVENT = re.compile(r"^(Killing|Death|Murder|Shooting|Assassination|Disappearance|Kidnapping|Stabbing) of", re.I)
+
+
+def build_round2(pairs, page_items, template):
+    keep = [p["id"] for p in pairs
+            if p["id"] not in SEEN_BY_AUTHOR and not any(PERSON_EVENT.search(t) for t in p["titles"])][:ROUND2_N]
+    items = [it for it in page_items if it["id"] in set(keep)]
+    (ROOT / "annotation/round2_ids.json").write_text(json.dumps(keep, indent=0), encoding="utf-8")
+    swaps = [
+        ("/*__ITEMS__*/[]", json.dumps(items, ensure_ascii=False)),
+        ('/*__KEY__*/"recency-annotation-v1"', '"recency-annotation-v2"'),
+        ("/*__MINMS__*/0", str(ROUND2_LOCK_MS)),
+        ('/*__PREFIX__*/"recency_annotation_"', '"recency_annotation_round2_"'),
+        ("<title>Which Event Is Newer?</title>", "<title>Which Event Is Newer? Round 2</title>"),
+        ("<h1>Which event is more recent?</h1>", "<h1>Which event is more recent? (round 2)</h1>"),
+        ("About 30–40 minutes; you can take a break and continue later.",
+         "About 20 minutes; you can take a break and continue later."),
+        ("<strong>100 pairs</strong>", f"<strong>{len(items)} pairs</strong>"),
+        ("Read both passages once and go with your first impression.",
+         "Please read <strong>both passages in full</strong> before answering; the buttons unlock after "
+         f"{ROUND2_LOCK_MS // 1000} seconds. Then give your best judgement."),
+        ("There are no trick questions.</p>",
+         "There are no trick questions.</p>\n      <p class=\"muted\">Some passages describe disasters, crimes or "
+         "conflicts. Choose <em>Can't tell</em> to skip any pair you would rather not judge, or stop at any time.</p>"),
+    ]
+    html = template
+    for a, b in swaps:
+        assert html.count(a) == 1, a
+        html = html.replace(a, b)
+    (ROOT / "annotation/annotate_round2.html").write_text(html, encoding="utf-8")
+    print(f"round 2: {len(items)} pairs -> annotation/annotate_round2.html, ids in annotation/round2_ids.json")
 
 
 if __name__ == "__main__":

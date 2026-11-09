@@ -85,6 +85,7 @@
     </div>
     <div class="bar"><div id="fill"></div></div>
     <p class="question">Which passage describes the <u>more recent</u> event?</p>
+    <p id="wait" class="muted" style="margin:4px 0 0;min-height:1.4em"></p>
     <div class="pair">
       <div class="card passage"><div class="label">PASSAGE 1</div><p id="left"></p>
         <button class="primary" id="chooseL">Passage 1 is more recent</button></div>
@@ -112,7 +113,9 @@
 </main>
 <script>
 const ITEMS = /*__ITEMS__*/[];
-const KEY = "recency-annotation-v1";
+const KEY = /*__KEY__*/"recency-annotation-v1";
+const MIN_MS = /*__MINMS__*/0;                            // answer buttons stay locked this long on each pair
+const FILE_PREFIX = /*__PREFIX__*/"recency_annotation_";
 
 // ---------- storage (never required: the page works without it) ----------
 function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } }
@@ -147,12 +150,28 @@ function render() {
   $("fill").style.width = `${100 * S.pos / ITEMS.length}%`;
   $("back").disabled = S.pos === 0;
   shownAt = performance.now();
+  currentLock = S.answers[item.id] ? 0 : MIN_MS;           // no lock when revisiting an answered pair
+  lockFor(currentLock);
   show("task");
+}
+
+let unlockTimer = null, currentLock = 0;
+function lockFor(ms) {
+  const btns = [$("chooseL"), $("chooseR"), $("cant")];
+  clearInterval(unlockTimer);
+  if (ms <= 0) { btns.forEach(b => b.disabled = false); $("wait").textContent = ""; return; }
+  btns.forEach(b => b.disabled = true);
+  const tick = () => {
+    const left = Math.ceil((ms - (performance.now() - shownAt)) / 1000);
+    if (left <= 0) { clearInterval(unlockTimer); btns.forEach(b => b.disabled = false); $("wait").textContent = ""; }
+    else $("wait").textContent = `Please read both passages. Buttons unlock in ${left} s.`;
+  };
+  tick(); unlockTimer = setInterval(tick, 250);
 }
 
 let locked = false;
 function answer(side) {                                   // side: "L", "R" or "C"
-  if (locked || S.pos >= ITEMS.length) return;
+  if (locked || S.pos >= ITEMS.length || performance.now() - shownAt < currentLock) return;
   locked = true; setTimeout(() => locked = false, 250);   // guards against double clicks
   const k = S.order[S.pos], sw = S.swap[S.pos];
   const leftIndex = sw ? 1 : 0;                           // index (in the pair file) of the passage shown on the left
@@ -196,7 +215,7 @@ $("review").onclick = () => { S.pos = ITEMS.length - 1; save(); render(); };
 $("download").onclick = () => {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([results()], { type: "application/json" }));
-  a.download = `recency_annotation_${S.initials || "anon"}.json`;
+  a.download = `${FILE_PREFIX}${S.initials || "anon"}.json`;
   document.body.appendChild(a); a.click(); a.remove();
 };
 $("copy").onclick = async () => {

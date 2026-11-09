@@ -1,1 +1,20 @@
-\textcolor{red}{[annotation table pending]}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+& \multicolumn{2}{c}{\textbf{Round 1}: 100 pairs, no time limit} & \multicolumn{2}{c}{\textbf{Round 2}: 40 pairs, buttons locked 10\,s} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Reader} & median s/pair & accuracy [95\% CI] & median s/pair & accuracy [95\% CI] \\
+\midrule
+A1 (author) & 4.1 & 0.47 [0.38, 0.57] & 21.1 & 0.68 [0.52, 0.80] \\
+A2 & 1.9 & 0.64 [0.54, 0.73] & 12.9 & 0.47 [0.33, 0.63] \\
+A3 & 1.5 & 0.51 [0.41, 0.61] & 16.5 & 0.65 [0.50, 0.78] \\
+Human majority vote &  & 0.54 [0.44, 0.63] &  & 0.62 [0.47, 0.76] \\
+\midrule
+LLM judge: Qwen2.5-3B &  & 0.53 [0.43, 0.62] &  & 0.50 [0.35, 0.65] \\
+LLM judge: Phi-3.5-mini &  & 0.64 [0.54, 0.73] &  & 0.65 [0.50, 0.78] \\
+Min-K\% (Pythia-2.8B) &  & 0.64 [0.54, 0.73] &  & 0.68 [0.52, 0.80] \\
+Blind TF-IDF (raw text) &  & 0.97 [0.92, 0.99] &  & 0.95 [0.83, 0.99] \\
+Blind TF-IDF (years masked) &  & 0.83 [0.74, 0.89] &  & 0.80 [0.65, 0.90] \\
+\midrule
+Fleiss' $\kappa$, 3 humans & \multicolumn{2}{c}{0.005} & \multicolumn{2}{c}{0.100} \\
+\bottomrule
+\end{tabular}

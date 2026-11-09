@@ -74,34 +74,42 @@ def accuracy_row(name, verdicts, gold, ids, exclude=()):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--author", default="AR", help="initials the author used on the page")
+    ap.add_argument("--author", default="AR,ASHIKUR", help="comma-separated initials the author used on the page")
     ap.add_argument("--responses", default=str(ROOT / "data/annotation/responses"))
-    ap.add_argument("--out", default=str(ROOT / "results/annotation"))
+    ap.add_argument("--round", type=int, default=1, choices=[1, 2],
+                    help="1: 100 pairs, no time lock; 2: 40 of them, answer buttons locked 10 s per pair")
+    ap.add_argument("--out", default=None, help="default results/annotation/round<N>")
     args = ap.parse_args()
+    args.out = args.out or str(ROOT / f"results/annotation/round{args.round}")
 
     pairs = read(ROOT / "data/annotation/pairs.jsonl")
     ids = [p["id"] for p in pairs]
+    if args.round == 2:
+        ids = json.loads((ROOT / "annotation/round2_ids.json").read_text(encoding="utf-8"))
     gold = {p["id"]: 1 - p["member_index"] for p in pairs}          # index of the newer (non-member) passage
 
     # ---------------------------------------------------------------- annotators
     files = sorted(Path(args.responses).glob("*.json"))
     raw = [json.loads(f.read_text(encoding="utf-8")) for f in files]
-    raw = [r for r in raw if r.get("consent")]
-    raw.sort(key=lambda r: (r.get("initials", "").upper() != args.author.upper(), r.get("finished") or ""))
+    raw = [r for r in raw if r.get("consent") and r.get("task") == f"recency-annotation-v{args.round}"]
+    # A1 = the author, then the others by initials, so the same person keeps the same label in both rounds
+    authors = {a.strip().upper() for a in args.author.split(",")}
+    raw.sort(key=lambda r: (r.get("initials", "").upper() not in authors, r.get("initials", "").upper()))
     humans = {}
     timing = {}
     for k, r in enumerate(raw, 1):
         name = f"A{k}"
         humans[name] = {pid: a["choice"] for pid, a in r["answers"].items()}
-        timing[name] = float(np.median([a["ms"] for a in r["answers"].values()])) / 1000
-    author = "A1" if raw and raw[0].get("initials", "").upper() == args.author.upper() else None
+        timing[name] = (float(np.median([a["ms"] for a in r["answers"].values()])) / 1000,
+                        sum(a["ms"] for a in r["answers"].values()) / 60000)
+    author = "A1" if raw and raw[0].get("initials", "").upper() in authors else None
 
     rows = []
     for h, v in humans.items():
         row = accuracy_row(h + (" (author)" if h == author else ""), v, gold, ids)
-        row["median_seconds_per_pair"] = timing[h]
+        row["median_seconds_per_pair"], row["total_minutes"] = timing[h]
         rows.append(row)
-        if h == author:
+        if h == author and args.round == 1:                      # round 2 already leaves those pairs out
             rows.append(accuracy_row(h + " (author, excluding p000-p002)", v, gold, ids, SEEN_BY_AUTHOR))
 
     # majority vote over humans who decided (ties and all-"can't tell" -> None)
@@ -132,7 +140,7 @@ def main():
     # ---------------------------------------------------------------- LLM judges
     judges = {}
     for f in sorted((ROOT / "results/llm_judge").glob("pairs_*.jsonl")):
-        J = read(f)
+        J = [r for r in read(f) if r["id"] in set(ids)]
         name = J[0]["judge"].split("/")[-1]
         judges[name] = {r["id"]: int(r["p0_newer"] < 0.5) for r in J}     # index judged newer, both orders averaged
         rows.append(accuracy_row(f"judge {name}", judges[name], gold, ids))

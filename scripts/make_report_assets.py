@@ -136,6 +136,32 @@ if mimir is not None:
 else:
     put("MimirSizeTrend", PENDING); put("MimirCI", PENDING)
 
+
+def num(name):
+    try:
+        return float(macros[name])
+    except (KeyError, ValueError):
+        return None
+
+
+# derived: how much masking the years costs Min-K%, absolute and as a share of its margin above chance
+dw, dn = (num("RepMinK"), num("MaskWikiMinK")), (num("NewMinK"), num("MaskNewMinK"))
+if None not in dw + dn:
+    put("MaskWikiDrop", f"{dw[0] - dw[1]:.3f}")
+    put("MaskNewDrop", f"{dn[0] - dn[1]:.3f}")
+    shares = [100 * (a - b) / (a - 0.5) for a, b in (dw, dn)]
+    put("MaskShareRange", f"{min(shares):.0f}--{max(shares):.0f}\\%")
+else:
+    put("MaskWikiDrop", PENDING); put("MaskNewDrop", PENDING); put("MaskShareRange", PENDING)
+# derived: Min-K% gain from the smallest to the largest Pythia, per benchmark
+for tag in ("Rep", "New", "Mimir"):
+    trend = macros.get(f"{tag}SizeTrend", PENDING)
+    if PENDING in trend:
+        put(f"{tag}SizeGain", PENDING)
+    else:
+        v = [float(t) for t in trend.split(",")]
+        put(f"{tag}SizeGain", f"{v[-1] - v[0]:.3f}")
+
 # ---------------------------------------------------------------- LLM judge (notebook 04)
 jp = csv("results/llm_judge/summary_pointwise.csv")
 jpairs = csv("results/llm_judge/summary_pairs.csv")
@@ -225,42 +251,70 @@ for j in JUDGES:
 rows += [r"\bottomrule", r"\end{tabular}"]
 (GEN / "tab_results.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
 
-# ---------------------------------------------------------------- human annotation
-ann_path = ROOT / "results/annotation/summary.json"
-if ann_path.exists():
-    ann = json.loads(ann_path.read_text(encoding="utf-8"))
+# ---------------------------------------------------------------- human annotation (two rounds)
+def load_round(n):
+    path = ROOT / f"results/annotation/round{n}/summary.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+ROUNDS = {"One": load_round(1), "Two": load_round(2)}
+ROWS = [("A1 (author)", "A1 (author)"), ("A2", "A2"), ("A3", "A3"), ("human majority", "Human majority vote"),
+        ("judge Qwen2.5-3B-Instruct", "LLM judge: Qwen2.5-3B"), ("judge Phi-3.5-mini-instruct", "LLM judge: Phi-3.5-mini"),
+        ("Min-20% (Pythia-2.8B)", r"Min-K\% (Pythia-2.8B)"), ("blind TF-IDF (raw text)", "Blind TF-IDF (raw text)"),
+        ("blind TF-IDF (years masked)", "Blind TF-IDF (years masked)")]
+
+
+def ann_cells(ann, key):
+    if ann is None:
+        return ["", PENDING]
+    r = {x["who"]: x for x in ann["accuracy"]}.get(key)
+    if r is None:
+        return ["", PENDING if key.startswith("judge") else "--"]
+    sec = f"{r['median_seconds_per_pair']:.1f}" if "median_seconds_per_pair" in r else ""
+    return [sec, f"{r['accuracy_decided']:.2f} [{r['ci95'][0]:.2f}, {r['ci95'][1]:.2f}]"]
+
+
+lines = [r"\begin{tabular}{@{}lcccc@{}}", r"\toprule",
+         r"& \multicolumn{2}{c}{\textbf{Round 1}: 100 pairs, no time limit} & "
+         r"\multicolumn{2}{c}{\textbf{Round 2}: 40 pairs, buttons locked 10\,s} \\",
+         r"\cmidrule(lr){2-3}\cmidrule(lr){4-5}",
+         r"\textbf{Reader} & median s/pair & accuracy [95\% CI] & median s/pair & accuracy [95\% CI] \\", r"\midrule"]
+for key, label in ROWS:
+    if key.startswith("judge Qwen"):
+        lines.append(r"\midrule")
+    lines.append(f"{label} & " + " & ".join(ann_cells(ROUNDS['One'], key) + ann_cells(ROUNDS['Two'], key)) + r" \\")
+fk = [f3(a["agreement"].get("fleiss_kappa_3cat", np.nan)) if a else PENDING for a in ROUNDS.values()]
+lines += [r"\midrule", rf"Fleiss' $\kappa$, 3 humans & \multicolumn{{2}}{{c}}{{{fk[0]}}} & \multicolumn{{2}}{{c}}{{{fk[1]}}} \\",
+          r"\bottomrule", r"\end{tabular}"]
+(GEN / "tab_annotation.tex").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+for tag, ann in ROUNDS.items():
+    names = ["FleissK", "CohenHumanRange", "MajorityAcc", "HumanAccRange", "HumanMedianRange", "HumanTotalRange",
+             "KappaQwenMajority", "KappaPhiMajority", "KappaJudges", "PairMinK", "PairBlind", "PairBlindNoyr",
+             "KappaMinKMajority", "JudgeQwenPairAcc", "JudgePhiPairAcc"]
+    if ann is None:
+        for k in names:
+            put(k + tag, PENDING)
+        continue
     acc = {r["who"]: r for r in ann["accuracy"]}
     ag = ann["agreement"]
-    rows = [r"\begin{tabular}{@{}lrrc@{}}", r"\toprule",
-            r"\textbf{Who} & \textbf{decided} & \textbf{can't tell} & \textbf{accuracy [95\% CI]} \\", r"\midrule"]
-    for who, r in acc.items():
-        nm = tex_escape(who).replace("Min-20%", r"Min-K\%")
-        rows.append(f"{nm} & {r['decided']} & {r['cant_tell']} & {r['accuracy_decided']:.2f} "
-                    f"[{r['ci95'][0]:.2f}, {r['ci95'][1]:.2f}] \\\\")
-    rows += [r"\bottomrule", r"\end{tabular}"]
-    (GEN / "tab_annotation.tex").write_text("\n".join(rows) + "\n", encoding="utf-8")
-    put("NAnnotators", str(ann["n_annotators"]))
-    put("FleissK", f2(ag.get("fleiss_kappa_3cat", np.nan)))
-    put("FleissKDecided", f2(ag.get("fleiss_kappa_decided_only", np.nan)))
-    ck = [v for k, v in ag.items() if re.fullmatch(r"cohen_kappa_A\d_A\d", k)]
-    put("CohenHumanRange", f"{min(ck):.2f}--{max(ck):.2f}" if ck else PENDING)
-    maj = acc.get("human majority")
-    put("MajorityAcc", f2(maj["accuracy_decided"]) if maj else PENDING)
     hum = [r for w, r in acc.items() if re.match(r"A\d( \(author\))?$", w)]
-    put("HumanAccRange", f"{min(r['accuracy_decided'] for r in hum):.2f}--{max(r['accuracy_decided'] for r in hum):.2f}")
-    for j, tag in zip(JUDGES, ["Qwen", "Phi"]):
-        put(f"Kappa{tag}Majority", f2(ag.get(f"cohen_kappa_{j}_majority", np.nan)))
-    put("KappaJudges", f2(ag.get(f"cohen_kappa_{JUDGES[0]}_{JUDGES[1]}", np.nan)))
-    put("PairMinK", f2(acc["Min-20% (Pythia-2.8B)"]["accuracy_decided"]))
-    put("PairBlind", f2(acc["blind TF-IDF (raw text)"]["accuracy_decided"]))
-    put("PairBlindNoyr", f2(acc["blind TF-IDF (years masked)"]["accuracy_decided"]))
-    put("KappaMinKMajority", f2(ag.get("cohen_kappa_Min-20% (Pythia-2.8B)_majority", np.nan)))
-else:
-    (GEN / "tab_annotation.tex").write_text(r"\textcolor{red}{[annotation table pending]}" + "\n", encoding="utf-8")
-    for k in ["NAnnotators", "FleissK", "FleissKDecided", "CohenHumanRange", "MajorityAcc", "HumanAccRange",
-              "KappaQwenMajority", "KappaPhiMajority", "KappaJudges", "PairMinK", "PairBlind", "PairBlindNoyr",
-              "KappaMinKMajority"]:
-        put(k, PENDING)
+    ck = [v for k, v in ag.items() if re.fullmatch(r"cohen_kappa_A\d_A\d", k)]
+    get = lambda who: f2(acc[who]["accuracy_decided"]) if who in acc else PENDING
+    put("FleissK" + tag, f3(ag.get("fleiss_kappa_3cat", np.nan)))
+    put("CohenHumanRange" + tag, (f"{min(ck):.2f} to {max(ck):.2f}" if ck else PENDING).replace("-0", "$-$0"))
+    put("MajorityAcc" + tag, get("human majority"))
+    put("HumanAccRange" + tag, f"{min(r['accuracy_decided'] for r in hum):.2f}--{max(r['accuracy_decided'] for r in hum):.2f}")
+    put("HumanMedianRange" + tag, f"{min(r['median_seconds_per_pair'] for r in hum):.1f}--{max(r['median_seconds_per_pair'] for r in hum):.1f}")
+    put("HumanTotalRange" + tag, f"{min(r['total_minutes'] for r in hum):.0f}--{max(r['total_minutes'] for r in hum):.0f}")
+    for j, jt in zip(JUDGES, ["Qwen", "Phi"]):
+        put(f"Kappa{jt}Majority" + tag, f2(ag.get(f"cohen_kappa_{j}_majority", np.nan)))
+        put(f"Judge{jt}PairAcc" + tag, get(f"judge {j}"))
+    put("KappaJudges" + tag, f2(ag.get(f"cohen_kappa_{JUDGES[0]}_{JUDGES[1]}", ag.get(f"cohen_kappa_{JUDGES[1]}_{JUDGES[0]}", np.nan))))
+    put("PairMinK" + tag, get("Min-20% (Pythia-2.8B)"))
+    put("PairBlind" + tag, get("blind TF-IDF (raw text)"))
+    put("PairBlindNoyr" + tag, get("blind TF-IDF (years masked)"))
+    put("KappaMinKMajority" + tag, f2(ag.get("cohen_kappa_Min-20% (Pythia-2.8B)_majority", np.nan)))
 
 # ---------------------------------------------------------------- data snippets figure
 PERSON_EVENT = re.compile(r"^(Killing|Death|Murder|Shooting|Assassination|Disappearance|Kidnapping|Stabbing) of", re.I)
@@ -285,7 +339,7 @@ put("SnipNewJSON", tex_escape(json.dumps({k: (row26[k][:38] + "...") if k == "in
                                          ensure_ascii=False)))
 
 # ---------------------------------------------------------------- figure: Min-K% vs model size on 3 benchmarks
-fig, ax = plt.subplots(figsize=(3.15, 2.15))
+fig, ax = plt.subplots(figsize=(3.15, 1.9))
 series = [("WikiMIA", rep, BLUE, "o"), ("WikiMIA-2026", new, ORANGE, "s"), ("MIMIR (no time gap)", mimir, AQUA, "^")]
 for name, df, colour, mk in series:
     if df is None:
@@ -317,7 +371,7 @@ bars = [("Min-K% on Pythia-2.8B", BLUE, lambda ds: {"WikiMIA": mean_auc(rep, T28
         ("Blind TF-IDF (text only)", ORANGE, lambda ds: bm.get((ds, "tfidf_lr"))),
         ("Blind TF-IDF, years masked", AQUA, lambda ds: bm.get((ds, "tfidf_lr_noyr"))),
         (f"LLM judge ({JUDGES[0].split('-Instruct')[0]}), years masked", YELLOW, lambda ds: judge_auc.get(ds))]
-fig, ax = plt.subplots(figsize=(6.3, 2.25))
+fig, ax = plt.subplots(figsize=(6.3, 1.9))
 wdt = 0.2
 for j, (label, colour, get) in enumerate(bars):
     for i, (_, ds) in enumerate(groups):

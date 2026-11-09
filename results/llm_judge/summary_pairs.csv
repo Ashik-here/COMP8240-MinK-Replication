@@ -1,0 +1,3 @@
+judge,accuracy (A/B order 1),accuracy (order 2),accuracy (both orders averaged),same verdict both orders,mean P(answer A),P(A)+P(B)
+Qwen/Qwen2.5-3B-Instruct,0.48,0.52,0.53,0.0,9.610201009908933e-06,0.9999999998461516
+microsoft/Phi-3.5-mini-instruct,0.47,0.53,0.64,0.02,0.010429216565611988,0.9999998488223936

@@ -1,0 +1,11 @@
+ppl   AUC 0.5631, Accuracy 0.5618, TPR@0.1%FPR of 0.0741
+ppl/Ref_ppl (calibrate PPL to the reference model)   AUC 0.6049, Accuracy 0.5894, TPR@0.1%FPR of 0.0760
+ppl/lowercase_ppl   AUC 0.5725, Accuracy 0.5551, TPR@0.1%FPR of 0.0856
+ppl/zlib   AUC 0.5502, Accuracy 0.5542, TPR@0.1%FPR of 0.0779
+Min_5.0% Prob   AUC 0.5337, Accuracy 0.5466, TPR@0.1%FPR of 0.0684
+Min_10.0% Prob   AUC 0.5548, Accuracy 0.5542, TPR@0.1%FPR of 0.0608
+Min_20.0% Prob   AUC 0.5692, Accuracy 0.5599, TPR@0.1%FPR of 0.0894
+Min_30.0% Prob   AUC 0.5759, Accuracy 0.5741, TPR@0.1%FPR of 0.0817
+Min_40.0% Prob   AUC 0.5781, Accuracy 0.5760, TPR@0.1%FPR of 0.0817
+Min_50.0% Prob   AUC 0.5733, Accuracy 0.5656, TPR@0.1%FPR of 0.0817
+Min_60.0% Prob   AUC 0.5705, Accuracy 0.5618, TPR@0.1%FPR of 0.0837

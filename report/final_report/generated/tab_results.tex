@@ -4,11 +4,11 @@
 \textbf{Method} & WikiMIA & WikiMIA-26 & MIMIR & WikiMIA & WikiMIA-26 \\
 \midrule
 \multicolumn{6}{@{}l}{\emph{Membership attacks, Pythia-2.8B (original code)}} \\
-PPL & 0.626 & 0.661 & \pending{} & \pending{} & \pending{} \\
-Zlib & 0.642 & 0.627 & \pending{} & \pending{} & \pending{} \\
-Lowercase & 0.603 & 0.642 & \pending{} & \pending{} & \pending{} \\
-Smaller Ref & 0.610 & 0.611 & \pending{} & \pending{} & \pending{} \\
-Min-K\% (k=20) & 0.649 & 0.675 & \pending{} & \pending{} & \pending{} \\
+PPL & 0.626 & 0.661 & 0.525 & 0.592 & 0.628 \\
+Zlib & 0.642 & 0.627 & 0.528 & 0.611 & 0.586 \\
+Lowercase & 0.603 & 0.642 & 0.511 & 0.571 & 0.633 \\
+Smaller Ref & 0.610 & 0.611 & 0.514 & 0.602 & 0.601 \\
+Min-K\% (k=20) & 0.649 & 0.675 & 0.529 & 0.610 & 0.628 \\
 \addlinespace
 \multicolumn{6}{@{}l}{\emph{Blind baselines: text only, no model access}} \\
 Latest year in text & 0.889 & 0.889 & 0.491 & -- & -- \\
@@ -16,7 +16,7 @@ TF-IDF + LR & 0.955 & 0.947 & 0.519 & -- & -- \\
 TF-IDF + LR, years masked & 0.789 & 0.797 & 0.524 & -- & -- \\
 \addlinespace
 \multicolumn{6}{@{}l}{\emph{LLM judges, years masked, one passage at a time}} \\
-Qwen2.5-3B-Instruct & -- & -- & \pending{} & \pending{} & \pending{} \\
-Phi-3.5-mini-instruct & -- & -- & \pending{} & \pending{} & \pending{} \\
+Qwen2.5-3B-Instruct & -- & -- & 0.489 & 0.705 & 0.667 \\
+Phi-3.5-mini-instruct & -- & -- & 0.507 & 0.733 & 0.643 \\
 \bottomrule
 \end{tabular}

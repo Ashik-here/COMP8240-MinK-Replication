@@ -1,0 +1,9 @@
+{
+ "python": "3.13.16",
+ "torch": "2.14.1+cu130",
+ "transformers": "5.22.1",
+ "datasets": "4.8.5",
+ "sklearn": "1.6.1",
+ "numpy": "2.4.6",
+ "gpu": "Tesla T4"
+}

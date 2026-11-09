@@ -1,0 +1,193 @@
+{
+ "n_pairs": 100,
+ "n_annotators": 3,
+ "author": "A1",
+ "accuracy": [
+  {
+   "who": "A1 (author)",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 47,
+   "accuracy_decided": 0.47,
+   "ci95": [
+    0.3751065198210374,
+    0.5671131686275227
+   ],
+   "accuracy_cant_tell_as_half": 0.47,
+   "p_vs_chance": 0.6172994135892524,
+   "median_seconds_per_pair": 4.1235,
+   "total_minutes": 16.7367
+  },
+  {
+   "who": "A1 (author, excluding p000-p002)",
+   "answered": 97,
+   "cant_tell": 0,
+   "decided": 97,
+   "correct": 46,
+   "accuracy_decided": 0.4742268041237113,
+   "ci95": [
+    0.37774323399262677,
+    0.5726740541106956
+   ],
+   "accuracy_cant_tell_as_half": 0.4742268041237113,
+   "p_vs_chance": 0.6848587772144035
+  },
+  {
+   "who": "A2",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 64,
+   "accuracy_decided": 0.64,
+   "ci95": [
+    0.542352199811621,
+    0.7272892540950986
+   ],
+   "accuracy_cant_tell_as_half": 0.64,
+   "p_vs_chance": 0.006637120515926128,
+   "median_seconds_per_pair": 1.9035,
+   "total_minutes": 8.387416666666667
+  },
+  {
+   "who": "A3",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 51,
+   "accuracy_decided": 0.51,
+   "ci95": [
+    0.4134784047743415,
+    0.6057816990761385
+   ],
+   "accuracy_cant_tell_as_half": 0.51,
+   "p_vs_chance": 0.9204107626128216,
+   "median_seconds_per_pair": 1.4825,
+   "total_minutes": 3.7356
+  },
+  {
+   "who": "human majority",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 54,
+   "accuracy_decided": 0.54,
+   "ci95": [
+    0.44264685393523856,
+    0.6343935614666815
+   ],
+   "accuracy_cant_tell_as_half": 0.54,
+   "p_vs_chance": 0.48411841360729146
+  },
+  {
+   "who": "judge Phi-3.5-mini-instruct",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 64,
+   "accuracy_decided": 0.64,
+   "ci95": [
+    0.542352199811621,
+    0.7272892540950986
+   ],
+   "accuracy_cant_tell_as_half": 0.64,
+   "p_vs_chance": 0.006637120515926128
+  },
+  {
+   "who": "judge Qwen2.5-3B-Instruct",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 53,
+   "accuracy_decided": 0.53,
+   "ci95": [
+    0.4328868313724773,
+    0.6248934801789626
+   ],
+   "accuracy_cant_tell_as_half": 0.53,
+   "p_vs_chance": 0.6172994135892524
+  },
+  {
+   "who": "Min-20% (Pythia-2.8B)",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 64,
+   "accuracy_decided": 0.64,
+   "ci95": [
+    0.542352199811621,
+    0.7272892540950986
+   ],
+   "accuracy_cant_tell_as_half": 0.64,
+   "p_vs_chance": 0.006637120515926128
+  },
+  {
+   "who": "Min-20% (Pythia-2.8B, years masked)",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 60,
+   "accuracy_decided": 0.6,
+   "ci95": [
+    0.5020007846184025,
+    0.6906002538863971
+   ],
+   "accuracy_cant_tell_as_half": 0.6,
+   "p_vs_chance": 0.05688793364098079
+  },
+  {
+   "who": "blind TF-IDF (raw text)",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 97,
+   "accuracy_decided": 0.97,
+   "ci95": [
+    0.915479219195973,
+    0.9897456617765851
+   ],
+   "accuracy_cant_tell_as_half": 0.97,
+   "p_vs_chance": 2.630866896130179e-25
+  },
+  {
+   "who": "blind TF-IDF (years masked)",
+   "answered": 100,
+   "cant_tell": 0,
+   "decided": 100,
+   "correct": 83,
+   "accuracy_decided": 0.83,
+   "ci95": [
+    0.7445181876635703,
+    0.8910652394022684
+   ],
+   "accuracy_cant_tell_as_half": 0.83,
+   "p_vs_chance": 1.3097998650070218e-11
+  }
+ ],
+ "agreement": {
+  "fleiss_kappa_3cat": 0.004662840746054826,
+  "fleiss_kappa_decided_only": 0.004662840746054826,
+  "n_items_all_decided": 100,
+  "n_items": 100,
+  "cohen_kappa_A1_A2": -0.06255012028869289,
+  "cohen_kappa_A1_A3": 0.03730445246690728,
+  "cohen_kappa_A2_A3": 0.043938161106590656,
+  "Phi-3.5-mini-instruct_same_verdict_both_orders": 0.02,
+  "Phi-3.5-mini-instruct_mean_P(A)": 0.010429216565611988,
+  "Qwen2.5-3B-Instruct_same_verdict_both_orders": 0.0,
+  "Qwen2.5-3B-Instruct_mean_P(A)": 9.610201009908933e-06,
+  "cohen_kappa_Phi-3.5-mini-instruct_A1": 0.016064257028112428,
+  "cohen_kappa_Phi-3.5-mini-instruct_A2": 0.1393442622950819,
+  "cohen_kappa_Phi-3.5-mini-instruct_A3": 0.15637860082304533,
+  "cohen_kappa_Phi-3.5-mini-instruct_majority": 0.20833333333333337,
+  "cohen_kappa_Qwen2.5-3B-Instruct_A1": 0.07889467360832991,
+  "cohen_kappa_Qwen2.5-3B-Instruct_A2": 0.053182917002417396,
+  "cohen_kappa_Qwen2.5-3B-Instruct_A3": 0.1528842275110932,
+  "cohen_kappa_Qwen2.5-3B-Instruct_majority": 0.2510121457489878,
+  "cohen_kappa_Phi-3.5-mini-instruct_Qwen2.5-3B-Instruct": 0.41295546558704455,
+  "cohen_kappa_Min-20% (Pythia-2.8B)_majority": 0.040000000000000036,
+  "cohen_kappa_Min-20% (Pythia-2.8B, years masked)_majority": 0.016393442622950727,
+  "cohen_kappa_blind TF-IDF (raw text)_majority": 0.056224899598393496,
+  "cohen_kappa_blind TF-IDF (years masked)_majority": 0.17670682730923692
+ }
+}
